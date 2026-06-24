@@ -1,4 +1,4 @@
-# CB-MDTMv2
+# CB-MDTMv2 (24 June)
 
 CB-MDTMv2 projesi, canlı izleme, TPT ve Esogü DT Tool (STLC Manager) ve Sistem ayarlarını içermektedir.
 
