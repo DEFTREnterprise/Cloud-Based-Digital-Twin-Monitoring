@@ -1,0 +1,25 @@
+# --- Core API ---
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# --- Database (async) ---
+sqlalchemy[asyncio]
+asyncpg
+alembic
+psycopg2-binary  # alembic (senkron) icin
+
+# --- MQTT ingest ---
+paho-mqtt
+
+# --- SSE (canlı stream) ---
+sse-starlette
+
+# --- HTTP client (OTOKAR adapter, Faz 1.4) ---
+httpx
+tenacity
+
+# --- Utils ---
+python-dotenv
+numpy

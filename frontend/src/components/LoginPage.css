@@ -1,0 +1,191 @@
+/* ═══════════════════════════════════════════════════════════════
+   LOGIN PAGE — Matches project design system
+   Sidebar: gray-900  |  Content: white  |  Accent: blue-600
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ---------- Full-screen layout ---------- */
+.login-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8fafc;
+  /* gray-50 — same as dashboard bg */
+}
+
+/* ---------- Two-panel Card ---------- */
+.login-card {
+  display: flex;
+  width: 800px;
+  max-width: calc(100vw - 32px);
+  min-height: 480px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 20px 50px -12px rgba(0, 0, 0, 0.12);
+  animation: cardSlideIn 0.5s ease-out;
+}
+
+@keyframes cardSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Shake on error */
+.login-card--shake {
+  animation: shakeCard 0.45s ease-in-out;
+}
+
+@keyframes shakeCard {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  15% {
+    transform: translateX(-10px);
+  }
+
+  30% {
+    transform: translateX(8px);
+  }
+
+  45% {
+    transform: translateX(-6px);
+  }
+
+  60% {
+    transform: translateX(4px);
+  }
+
+  75% {
+    transform: translateX(-2px);
+  }
+}
+
+/* ---------- Left Panel (mirrors Sidebar design) ---------- */
+.login-card-left {
+  position: relative;
+  width: 300px;
+  min-width: 300px;
+  background-color: #111827;
+  /* gray-900 — same as sidebar */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.login-brand-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 80%, rgba(37, 99, 235, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(25, 167, 206, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.login-brand-content {
+  position: relative;
+  flex: 1;
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-brand-footer {
+  position: relative;
+  padding: 20px 32px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ---------- Right Panel (white, like content area) ---------- */
+.login-card-right {
+  flex: 1;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40px;
+}
+
+.login-form-container {
+  max-width: 340px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ---------- Fade in for error ---------- */
+.login-fade-in {
+  animation: fadeInError 0.25s ease-out;
+}
+
+@keyframes fadeInError {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Spinner ---------- */
+.login-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Responsive: Stack on small screens ---------- */
+@media (max-width: 640px) {
+  .login-card {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .login-card-left {
+    width: 100%;
+    min-width: 100%;
+    min-height: 160px;
+  }
+
+  .login-brand-content {
+    padding: 24px;
+    align-items: center;
+    text-align: center;
+  }
+
+  .login-brand-content .mt-8 {
+    display: none;
+  }
+
+  .login-brand-footer {
+    display: none;
+  }
+
+  .login-card-right {
+    padding: 24px;
+  }
+}
