@@ -6,8 +6,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine
-from app.routers import timeseries
-from app.routers import timeseries, stream, kpi
+from app.routers import timeseries, stream, kpi, assets
 
 
 @asynccontextmanager
@@ -19,11 +18,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
-app.include_router(timeseries.router)
 
 app.include_router(timeseries.router)
 app.include_router(stream.router)
 app.include_router(kpi.router)
+app.include_router(assets.router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,0 +1,76 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Mimari Akis" id="arch-flow">
+    <mxGraphModel dx="1000" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- BACKEND container -->
+        <mxCell id="beBox" value="BACKEND (uret - tasi - sakla - sun)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="360" height="520" as="geometry" />
+        </mxCell>
+        <mxCell id="mock" value="mock_otokar_publisher.py&#10;Sahte motor telemetrisi uretir" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="80" y="80" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="mqtt" value="Mosquitto (MQTT broker)&#10;Mesaj tasima (port 1883)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="80" y="170" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="worker" value="mqtt_worker.py&#10;Ingest worker: mesaji DB'ye yazar" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="80" y="260" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="db" value="TimescaleDB (cbmdtm)&#10;Zaman serisi verisi" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="120" y="350" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="FastAPI - app/routers/*&#10;assets - kpi - timeseries - stream" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="450" width="280" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- FRONTEND container -->
+        <mxCell id="feBox" value="FRONTEND (state yonetimi ve gosterim)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="450" y="40" width="360" height="1320" as="geometry" />
+        </mxCell>
+        <mxCell id="config" value="0 - Config&#10;config/telemetryConfig.js&#10;Sabitler: esik, pencere, polling, bucket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="490" y="80" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="service" value="1 - Transport (Service)&#10;services/liveTelemetryApi.js&#10;HTTP/SSE cagrisi, ham yanit doner" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="490" y="190" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="hook" value="2 - Hook&#10;hooks/useLiveTelemetry.js&#10;Polling, SSE aboneligi, kayan pencere tamponu, yukleme/hata durumu" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="490" y="300" width="280" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="adapter" value="3 - Adapter&#10;services/adapters/liveMonitoringAdapters.js&#10;Ham sema -> gorunum modeli (normalizasyon)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="490" y="430" width="280" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="composite" value="4 - Composite Hook&#10;hooks/useLiveMonitoringData.js&#10;Tekil hook + adapter'lari tek nesnede birlestirir" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="490" y="560" width="280" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="container" value="4 - Container&#10;components/LiveMonitoring/LiveMonitoring.jsx&#10;UI state + prop dagitimi" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="490" y="690" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="view" value="5 - View&#10;KPICards - TimeSeriesWidgets - DataQualityIndicator - DTSelector&#10;Sadece prop cizer, backend semasini bilmez" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="490" y="810" width="280" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Backend edges -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="mock" target="mqtt"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="mqtt" target="worker"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="worker" target="db"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="db" target="api"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- Backend -> Frontend -->
+        <mxCell id="e5" value="HTTP + SSE" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;fontStyle=1;strokeWidth=2;" edge="1" parent="1" source="api" target="service"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- Frontend edges -->
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="service" target="hook"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="hook" target="composite"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="adapter" target="composite"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="composite" target="container"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="container" target="view"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- Config dashed reads -->
+        <mxCell id="e11" value="okunur" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=open;dashed=1;fontSize=10;" edge="1" parent="1" source="config" target="hook"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e12" value="okunur" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=open;dashed=1;fontSize=10;" edge="1" parent="1" source="config" target="adapter"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

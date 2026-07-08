@@ -11,11 +11,12 @@ import { fetchDTOptions } from '../../services/liveMonitoringBackend';
  * Subsystem seçimi → Signal Set listesini belirler
  * DT System ve Robot Asset sabit seçeneklerdir.
  */
-const DTSelector = ({ selected, onChange, isStreaming, onToggleStream }) => {
-    // Backend'den dropdown seçeneklerini al (DT ve Subsystem seçimine bağlı)
+const DTSelector = ({ selected, onChange, isStreaming, onToggleStream, liveAssets = [] }) => {
+    // Dropdown seçeneklerini al (DT ve Subsystem seçimine bağlı).
+    // liveAssets: OTOKAR_LIVE seçiliyken backend'den (/api/v1/assets) gelen gerçek varlıklar.
     const options = useMemo(
-        () => fetchDTOptions(selected.dt, selected.subsystem),
-        [selected.dt, selected.subsystem]
+        () => fetchDTOptions(selected.dt, selected.subsystem, liveAssets),
+        [selected.dt, selected.subsystem, liveAssets]
     );
 
     // DT Twin değiştiğinde subsystem ve signalSet'i sıfırla (Otomatik seçim YOK)

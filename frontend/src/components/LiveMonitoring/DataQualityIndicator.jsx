@@ -7,12 +7,16 @@ import { fetchDataQualityMetrics } from '../../services/liveMonitoringBackend';
  * Veri kalitesi göstergesi.
  * 
  * Bu bileşen sadece "Görünüm" (View) katmanıdır.
- * Veri 'liveMonitoringBackend' (fake backend) üzerinden gelir.
+ * - liveMetrics prop'u verilirse (OTOKAR_LIVE canlı mod), gerçek backend'den
+ *   hesaplanan metrikler gösterilir (bkz. LiveMonitoring → buildLiveQualityMetrics).
+ * - Aksi halde 'liveMonitoringBackend' (mock) servisi kullanılır.
  */
-const DataQualityIndicator = ({ selectedDT }) => {
+const DataQualityIndicator = ({ selectedDT, liveMetrics = null }) => {
 
-    // Backend'den kalite metriklerini al
-    const metrics = useMemo(() => fetchDataQualityMetrics(selectedDT), [selectedDT]);
+    // Mock kalite metrikleri (canlı mod dışı)
+    const mockMetrics = useMemo(() => fetchDataQualityMetrics(selectedDT), [selectedDT]);
+
+    const metrics = liveMetrics || mockMetrics;
 
     const isHealthMissing = metrics.qualityFlag === 'UNKNOWN';
     const hasGapDetected = metrics.gaps > 0;
@@ -123,9 +127,9 @@ const DataQualityIndicator = ({ selectedDT }) => {
                         <AlertTriangle size={12} className={hasGapDetected ? 'text-amber-600' : 'text-slate-400'} />
                     </div>
                     <div className="text-xs">
-                        <span className="text-slate-500">Gaps:</span>
+                        <span className="text-slate-500">{metrics.gapRatePct != null ? 'Gap Rate:' : 'Gaps:'}</span>
                         <span className={`ml-1 font-semibold ${hasGapDetected ? 'text-amber-600' : 'text-slate-600'}`}>
-                            {metrics.gaps}
+                            {metrics.gapRatePct != null ? `${metrics.gapRatePct}%` : metrics.gaps}
                         </span>
                     </div>
                 </div>

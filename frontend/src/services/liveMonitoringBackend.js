@@ -25,6 +25,7 @@ import {
     Telemetry_Stream,
     Simulation_Stream
 } from '../data/mockLiveMonitoringData';
+import { LIVE_DT_ID, LIVE_DT_LABEL } from '../config/telemetryConfig';
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -37,6 +38,7 @@ import {
  * 
  * @param {string} [selectedDT] - Seçili DT Twin (subsystem filtrelemesi için)
  * @param {string} [selectedSubsystem] - Seçili Subsystem (signalSet filtrelemesi için)
+ * @param {Array}  [liveAssets] - Backend'den gelen gerçek varlık listesi (OTOKAR_LIVE için)
  * @returns {{
  *   dts:        Array<{ value: string, label: string }>,
  *   systems:    Array<{ value: string, label: string }>,
@@ -45,9 +47,12 @@ import {
  *   signalSets: Array<{ value: string, label: string }>
  * }}
  */
-export const fetchDTOptions = (selectedDT, selectedSubsystem) => {
+export const fetchDTOptions = (selectedDT, selectedSubsystem, liveAssets = []) => {
     // ── DT Twin seçenekleri ──
+    // OTOKAR_LIVE: FastAPI backend'ine bağlı GERÇEK canlı veri kaynağı.
+    // Diğerleri mock veriyle çalışmaya devam eder.
     const dts = [
+        { value: LIVE_DT_ID, label: LIVE_DT_LABEL },
         { value: 'TPT', label: 'TPT' },
         { value: 'ESOGU_DT', label: 'Esogü DT' },
         { value: 'OTOKAR_PDM', label: 'Otokar PDM' }
@@ -76,6 +81,18 @@ export const fetchDTOptions = (selectedDT, selectedSubsystem) => {
             { subsystem: { value: 'STLC_ENGINE', label: 'STLC Engine' }, signalSet: { value: 'TEST_LIFECYCLE', label: 'Test Lifecycle' } }
         ]
     };
+
+    // ── OTOKAR_LIVE: subsystem listesi backend'in /api/v1/assets çıktısından gelir ──
+    if (selectedDT === LIVE_DT_ID) {
+        const subsystems = liveAssets.map(a => ({
+            value: a.asset_code,
+            label: a.asset_code.replace(/_/g, ' ')
+        }));
+        const signalSets = selectedSubsystem
+            ? [{ value: 'LIVE_TELEMETRY', label: 'Live Telemetry (Backend)' }]
+            : [];
+        return { dts, systems, robots, subsystems, signalSets };
+    }
 
     // Seçili DT'ye göre subsystem listesi
     const mappings = subsystemMap[selectedDT] || [];

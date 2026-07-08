@@ -2,30 +2,51 @@ import React, { useEffect, useMemo, useState } from 'react';
 import DTSelector from './DTSelector';
 import TimeSeriesWidgets from './TimeSeriesWidgets';
 import KPICards from './KPICards';
-import TimeRangeControl from './TimeRangeControl';
 import DataQualityIndicator from './DataQualityIndicator';
 import FactoryCameraFeed from './FactoryCameraFeed';
 import DigitalTwinViewer from './DigitalTwinViewer';
+import { useLiveMonitoringData } from '../../hooks/useLiveMonitoringData';
+import { DEFAULT_LIVE_WINDOW } from '../../config/telemetryConfig';
+
+/**
+ * LIVE MONITORING — Orkestrasyon (Container) Bileşeni
+ *
+ * Bu bileşen yalnızca UI state'i (seçimler, akış açık/kapalı, zaman aralığı)
+ * yönetir ve useLiveMonitoringData bileşik hook'unun döndürdüğü HAZIR görünüm
+ * modellerini alt bileşenlere prop olarak dağıtır.
+ *
+ * Veri toplama/dönüştürme mantığının tamamı katmanlıdır (bkz. FRONTEND-ARCHITECTURE.md):
+ *   config/telemetryConfig.js            → sabitler (polling, pencere, eşikler)
+ *   services/liveTelemetryApi.js         → transport (HTTP + SSE)
+ *   services/adapters/liveMonitoringAdapters.js → backend şeması → görünüm modeli
+ *   hooks/useLiveTelemetry.js            → tekil veri hook'ları (state/tampon)
+ *   hooks/useLiveMonitoringData.js       → bileşik hook (bu modülün veri yüzü)
+ */
+
+const initialDTState = {
+    dt: '',
+    system: '',
+    robot: '',
+    subsystem: '',
+    signalSet: ''
+};
+
+const initialTimeRange = {
+    mode: 'live',
+    start: null,
+    end: null,
+    window: DEFAULT_LIVE_WINDOW,
+    preset: null
+};
 
 const LiveMonitoring = ({ drillContext }) => {
-    const initialDTState = {
-        dt: '',
-        system: '',
-        robot: '',
-        subsystem: '',
-        signalSet: ''
-    };
-
     const [selectedDT, setSelectedDT] = useState(initialDTState);
     const [showSimulation, setShowSimulation] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
+    const [timeRange, setTimeRange] = useState(initialTimeRange);
 
-    const [timeRange, setTimeRange] = useState({
-        mode: 'live',
-        start: null,
-        end: null,
-        window: '5m'
-    });
+    // ═══ CANLI VERİ (composite hook — tüm fetch/SSE/dönüşüm mantığı içeride) ═══
+    const live = useLiveMonitoringData({ selectedDT, isStreaming, timeRange });
 
     // Apply drill-through context from PdM (asset + time window) to Live Monitoring selections.
     // Note: LiveMonitoring currently doesn't have true "asset-aware" telemetry, so we map to OTOKAR_PDM twin + history mode.
@@ -60,6 +81,7 @@ const LiveMonitoring = ({ drillContext }) => {
         setTimeRange((prev) => ({
             ...prev,
             mode: 'history',
+            preset: null,
             start: drillContext.windowStartUtc || null,
             end: drillContext.windowEndUtc || null
         }));
@@ -70,13 +92,10 @@ const LiveMonitoring = ({ drillContext }) => {
 
     const handleStreamToggle = () => {
         if (isStreaming) {
-            // Stop Stream -> Reset logic
+            // Stop Stream → seçimleri sıfırla
             setIsStreaming(false);
-            // Optional: Reset selections if needed, but keeping them might be better UX for restart.
-            // User requested "seçimler sıfırlansın", so let's reset to initial state.
             setSelectedDT(initialDTState);
         } else {
-            // Start Stream
             setIsStreaming(true);
         }
     };
@@ -85,11 +104,9 @@ const LiveMonitoring = ({ drillContext }) => {
         <div className="h-full flex flex-col min-h-0 p-4 bg-slate-50 overflow-auto">
             {/* ═══ ANA ODAK: Factory Camera + Digital Twin Viewer ═══ */}
             <div className="flex gap-4 h-[calc(100vh-5.5rem)] flex-none mb-4">
-                {/* Sol Panel: Fabrika Kamera */}
                 <div className="flex-1 min-w-0">
                     <FactoryCameraFeed />
                 </div>
-                {/* Sağ Panel: Dijital İkiz */}
                 <div className="flex-1 min-w-0">
                     <DigitalTwinViewer />
                 </div>
@@ -97,7 +114,10 @@ const LiveMonitoring = ({ drillContext }) => {
 
             {/* Data Quality Indicator */}
             <div className="flex-none mb-4">
-                <DataQualityIndicator selectedDT={selectedDT.dt} />
+                <DataQualityIndicator
+                    selectedDT={selectedDT.dt}
+                    liveMetrics={live.liveActive ? live.qualityMetrics : null}
+                />
             </div>
 
             {/* DT Selector (tam genişlik) */}
@@ -107,8 +127,20 @@ const LiveMonitoring = ({ drillContext }) => {
                     onChange={setSelectedDT}
                     isStreaming={isStreaming}
                     onToggleStream={handleStreamToggle}
+                    liveAssets={live.catalog.assets}
                 />
             </div>
+
+            {/* Canlı mod: katalog yüklenemedi uyarısı */}
+            {live.isLive && live.catalog.error && (
+                <div className="flex-none mb-4 px-3 py-2 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">
+                    <span className="font-bold">Backend unreachable.</span>
+                    <span className="ml-2">
+                        Could not load asset/signal catalog from the API. Make sure the backend
+                        is running (uvicorn app.main:app) and reachable at the configured URL.
+                    </span>
+                </div>
+            )}
 
             {/* KPI Cards Row */}
             <div className="flex-none mb-4">
@@ -116,6 +148,8 @@ const LiveMonitoring = ({ drillContext }) => {
                     showSimulation={showSimulation}
                     isStreaming={isStreaming}
                     selectedDT={selectedDT.dt}
+                    liveMode={live.isLive}
+                    liveCards={live.kpiCards}
                 />
             </div>
 
@@ -144,6 +178,11 @@ const LiveMonitoring = ({ drillContext }) => {
                     timeRange={timeRange}
                     onTimeRangeChange={setTimeRange}
                     isStreaming={isStreaming}
+                    liveMode={live.isLive}
+                    liveSignals={live.signals}
+                    liveStreamError={live.streamError}
+                    historyLoading={live.history.loading}
+                    historyError={!!live.history.error}
                 />
             </div>
         </div>

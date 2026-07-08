@@ -13,28 +13,55 @@ import {
 /**
  * TIME SERIES WIDGETS BİLEŞENİ
  * Canlı sinyal zaman serisi gösterimi.
- * 
+ *
  * Bu bileşen sadece "Görünüm" (View) katmanıdır.
- * Veri ve hesaplamalar 'liveMonitoringBackend' üzerinden gelir.
+ * - liveMode=true iken (OTOKAR_LIVE) veri, LiveMonitoring container'ından
+ *   prop olarak gelir: liveSignals — backend SSE akışından (canlı) veya
+ *   /api/v1/timeseries'ten (tarihsel) doldurulmuş gerçek serilerdir.
+ *   Her sinyal nesnesi `points: [{ts, value, quality}]` alanı taşır.
+ * - Diğer DT'lerde 'liveMonitoringBackend' (mock) servisi kullanılır.
  */
-const TimeSeriesWidgets = ({ selectedDT, showSimulation, timeRange, onTimeRangeChange, isStreaming }) => {
+const TimeSeriesWidgets = ({
+    selectedDT,
+    showSimulation,
+    timeRange,
+    onTimeRangeChange,
+    isStreaming,
+    liveMode = false,
+    liveSignals = null,
+    liveStreamError = false,
+    historyLoading = false,
+    historyError = false
+}) => {
     const [viewMode, setViewMode] = useState('grid');
-    const [streamError, setStreamError] = useState(null);
 
-    // Backend'den sinyal verilerini al
-    const allSignals = useMemo(() => fetchSignalStream(selectedDT?.dt, selectedDT?.signalSet), [selectedDT?.dt, selectedDT?.signalSet]);
+    // Mock sinyal verileri (canlı mod dışındaki DT'ler için)
+    const mockSignals = useMemo(() => fetchSignalStream(selectedDT?.dt, selectedDT?.signalSet), [selectedDT?.dt, selectedDT?.signalSet]);
 
-    // Backend'den simülasyon özet metriklerini al
-    const simSummary = useMemo(() => fetchSimulationSummary(selectedDT?.dt), [selectedDT?.dt]);
+    // Mock simülasyon özet metrikleri (backend'de simülasyon verisi yok)
+    const mockSimSummary = useMemo(() => fetchSimulationSummary(selectedDT?.dt), [selectedDT?.dt]);
+
+    const allSignals = liveMode ? (liveSignals || []) : mockSignals;
+    const simSummary = liveMode ? null : mockSimSummary;
 
     // Compact Signal Row - minimal style
     const CompactSignalRow = ({ signal }) => {
-        const realData = generateSparklinePoints(signal.currentValue, Math.abs(signal.currentValue) * 0.05);
-        const simData = generateSparklinePoints(signal.simValue, Math.abs(signal.simValue) * 0.03);
-        const diffMetrics = calculateDiffMetrics(signal.currentValue, signal.simValue);
+        // Canlı mod: gerçek seri noktaları; mock mod: sahte sparkline üretimi
+        const hasLivePoints = Array.isArray(signal.points) && signal.points.length > 0;
+        const realData = hasLivePoints
+            ? signal.points.map(p => p.value)
+            : generateSparklinePoints(signal.currentValue ?? 0, Math.abs(signal.currentValue ?? 0) * 0.05);
+        const hasSim = signal.simValue != null;
+        const simData = hasSim
+            ? generateSparklinePoints(signal.simValue, Math.abs(signal.simValue) * 0.03)
+            : null;
+        const diffMetrics = hasSim
+            ? calculateDiffMetrics(signal.currentValue ?? 0, signal.simValue)
+            : { delta: '0.00', rmse: '0.00' };
         const hasThreshold = signal.thresholds;
-        const isWarning = hasThreshold && signal.currentValue >= signal.thresholds.warning;
-        const isCritical = hasThreshold && signal.currentValue >= signal.thresholds.critical;
+        const hasValue = signal.currentValue != null;
+        const isWarning = hasThreshold && hasValue && signal.currentValue >= signal.thresholds.warning;
+        const isCritical = hasThreshold && hasValue && signal.currentValue >= signal.thresholds.critical;
 
         const width = 80;
         const height = 24;
@@ -42,11 +69,14 @@ const TimeSeriesWidgets = ({ selectedDT, showSimulation, timeRange, onTimeRangeC
         const max = Math.max(...realData);
         const range = max - min || 1;
 
-        const createPath = (pts) => pts.map((val, i) => {
-            const x = (i / (pts.length - 1)) * width;
-            const y = height - ((val - min) / range) * height;
-            return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-        }).join(' ');
+        const createPath = (pts) => {
+            if (!pts || pts.length < 2) return '';
+            return pts.map((val, i) => {
+                const x = (i / (pts.length - 1)) * width;
+                const y = height - ((val - min) / range) * height;
+                return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+            }).join(' ');
+        };
 
         return (
             <div className={`flex items-center gap-3 px-3 py-2 border-b border-slate-100 hover:bg-slate-50 ${isCritical ? 'bg-rose-50' : isWarning ? 'bg-amber-50' : ''}`}>
@@ -60,10 +90,10 @@ const TimeSeriesWidgets = ({ selectedDT, showSimulation, timeRange, onTimeRangeC
                     <path d={createPath(realData)} fill="none" stroke="#6366f1" strokeWidth="1.5" />
                 </svg>
                 <div className="w-20 text-right">
-                    <span className="text-sm font-bold text-slate-800">{signal.currentValue}</span>
+                    <span className="text-sm font-bold text-slate-800">{hasValue ? signal.currentValue : '—'}</span>
                     <span className="text-[10px] text-slate-400 ml-0.5">{signal.unit}</span>
                 </div>
-                {showSimulation && (
+                {showSimulation && hasSim && (
                     <>
                         <div className="w-16 text-right text-xs text-slate-500">
                             <span className="text-slate-400">Sim:</span> {signal.simValue}
@@ -150,7 +180,28 @@ const TimeSeriesWidgets = ({ selectedDT, showSimulation, timeRange, onTimeRangeC
                 </div>
             ) : (
                 <>
-                    {streamError && <ErrorBanner />}
+                    {liveStreamError && <ErrorBanner />}
+
+                    {/* Tarihsel mod: backend'den seri yükleniyor */}
+                    {liveMode && historyLoading && (
+                        <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+                            <RefreshCw size={14} className="text-slate-500 animate-spin" />
+                            <span className="text-xs font-medium text-slate-600">
+                                Loading historical series from backend (/api/v1/timeseries)...
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Tarihsel mod: sorgu hatası */}
+                    {liveMode && historyError && !historyLoading && (
+                        <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-rose-50 border border-rose-200 rounded-lg">
+                            <AlertCircle size={14} className="text-rose-600" />
+                            <span className="text-xs font-medium text-rose-800">
+                                Failed to load historical series. Check that the backend is running
+                                and the selected time range is valid.
+                            </span>
+                        </div>
+                    )}
 
                     {/* RMSE Summary when simulation overlay is enabled */}
                     {showSimulation && simSummary && (
@@ -177,16 +228,33 @@ const TimeSeriesWidgets = ({ selectedDT, showSimulation, timeRange, onTimeRangeC
                         /* Grid View - Recharts Implementation */
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
                             {allSignals.slice(0, 8).map((signal, index) => {
-                                const realData = generateSparklinePoints(signal.currentValue, Math.abs(signal.currentValue) * 0.1);
-                                const simData = generateSparklinePoints(signal.simValue, Math.abs(signal.simValue) * 0.08);
-                                const diffMetrics = calculateDiffMetrics(signal.currentValue, signal.simValue);
+                                // Canlı mod: gerçek backend serisi (SSE tamponu / timeseries sorgusu)
+                                const hasLivePoints = Array.isArray(signal.points) && signal.points.length > 0;
+                                const hasSim = signal.simValue != null;
+                                const diffMetrics = hasSim
+                                    ? calculateDiffMetrics(signal.currentValue ?? 0, signal.simValue)
+                                    : { delta: '0.00', rmse: '—' };
 
-                                // Format data for Recharts with fake timestamps for X-axis
-                                const chartData = realData.map((val, i) => ({
-                                    time: i,
-                                    real: val,
-                                    sim: simData ? simData[i] : null
-                                }));
+                                let chartData;
+                                if (hasLivePoints) {
+                                    // Gerçek zaman damgalı veri noktaları
+                                    chartData = signal.points.map((p) => ({
+                                        time: new Date(p.ts).toLocaleTimeString('en-GB'),
+                                        real: p.value,
+                                        sim: null
+                                    }));
+                                } else {
+                                    // Mock mod: sahte sparkline üretimi
+                                    const realData = generateSparklinePoints(signal.currentValue ?? 0, Math.abs(signal.currentValue ?? 0) * 0.1);
+                                    const simData = hasSim
+                                        ? generateSparklinePoints(signal.simValue, Math.abs(signal.simValue) * 0.08)
+                                        : null;
+                                    chartData = realData.map((val, i) => ({
+                                        time: i,
+                                        real: val,
+                                        sim: simData ? simData[i] : null
+                                    }));
+                                }
 
                                 return (
                                     <div key={signal.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-[320px] flex flex-col">
@@ -197,10 +265,10 @@ const TimeSeriesWidgets = ({ selectedDT, showSimulation, timeRange, onTimeRangeC
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <div className="text-right">
-                                                    <span className="block text-xl font-bold text-slate-800 leading-none">{signal.currentValue}</span>
+                                                    <span className="block text-xl font-bold text-slate-800 leading-none">{signal.currentValue ?? '—'}</span>
                                                     <span className="text-[10px] text-slate-400 font-medium">{signal.unit}</span>
                                                 </div>
-                                                {showSimulation && (
+                                                {showSimulation && hasSim && (
                                                     <div className="text-right pl-3 border-l border-slate-100">
                                                         <span className="block text-xs font-medium text-slate-400">RMSE</span>
                                                         <span className="block text-sm font-bold text-indigo-600 leading-none">{diffMetrics.rmse}</span>
@@ -209,7 +277,16 @@ const TimeSeriesWidgets = ({ selectedDT, showSimulation, timeRange, onTimeRangeC
                                             </div>
                                         </div>
 
-                                        <div className="flex-1 min-h-0 bg-slate-50/30 rounded-lg p-2 border border-slate-50">
+                                        <div className="flex-1 min-h-0 bg-slate-50/30 rounded-lg p-2 border border-slate-50 relative">
+                                            {liveMode && !hasLivePoints && (
+                                                <div className="absolute inset-0 flex items-center justify-center z-10">
+                                                    <span className="text-xs text-slate-400 font-medium">
+                                                        {timeRange?.mode === 'history'
+                                                            ? 'No data in selected range'
+                                                            : 'Waiting for live data...'}
+                                                    </span>
+                                                </div>
+                                            )}
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
                                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -235,7 +312,7 @@ const TimeSeriesWidgets = ({ selectedDT, showSimulation, timeRange, onTimeRangeC
                                                             background: 'rgba(255, 255, 255, 0.95)',
                                                             boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
                                                         }}
-                                                        labelFormatter={(label) => `T-${chartData.length - label}s`}
+                                                        labelFormatter={(label) => (hasLivePoints ? label : `T-${chartData.length - label}s`)}
                                                     />
                                                     <Legend
                                                         iconSize={10}
@@ -250,7 +327,7 @@ const TimeSeriesWidgets = ({ selectedDT, showSimulation, timeRange, onTimeRangeC
                                                         name="Real Data"
                                                         isAnimationActive={true}
                                                     />
-                                                    {showSimulation && (
+                                                    {showSimulation && hasSim && (
                                                         <Line
                                                             type="monotone"
                                                             dataKey="sim"
