@@ -1,51 +1,24 @@
-import React, { useState } from 'react';
-import { Lock, User, Eye, EyeOff, AlertCircle, Shield, ChevronRight } from 'lucide-react';
+import React from 'react';
+import { AlertCircle, ChevronRight, Shield } from 'lucide-react';
+import { useKeycloak } from '../auth/useKeycloak';
 import './LoginPage.css';
 
-// Username -> password & role mapping
-export const USERS = {
-    admin: { password: 'admin', role: 'ADMIN', displayName: 'Administrator' },
-    otokaradmin: { password: 'otokaradmin', role: 'OTOKAR (Admin)', displayName: 'Otokar Admin' },
-    otokarviewer: { password: 'otokarviewer', role: 'OTOKAR (Viewer)', displayName: 'Otokar Viewer' },
-    esoguadmin: { password: 'esoguadmin', role: 'ESOGU (Admin)', displayName: 'ESOGU Admin' },
-    esoguview: { password: 'esoguview', role: 'ESOGU (Viewer)', displayName: 'ESOGU Viewer' },
-    deftradmin: { password: 'deftradmin', role: 'DEFTR (Admin)', displayName: 'DEFTR Admin' },
-    deftrviewer: { password: 'deftrviewer', role: 'DEFTR (Viewer)', displayName: 'DEFTR Viewer' },
-};
-
-const LoginPage = ({ onLogin }) => {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [error, setError] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [shake, setShake] = useState(false);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-        setIsLoading(true);
-
-        await new Promise((r) => setTimeout(r, 500));
-
-        const user = USERS[username.toLowerCase().trim()];
-        if (user && user.password === password) {
-            onLogin({
-                username: username.toLowerCase().trim(),
-                role: user.role,
-                displayName: user.displayName,
-            });
-        } else {
-            setError('Invalid username or password');
-            setShake(true);
-            setTimeout(() => setShake(false), 600);
-        }
-        setIsLoading(false);
-    };
+/**
+ * LoginPage — Keycloak entegre versiyonu (Faz 2.4.1 P0.8).
+ *
+ * Mock USERS listesi ve local form kaldirildi. Tek buton: "Sign in with
+ * Keycloak" — tikladiginda keycloak.login() PKCE redirect baslatir. Basarili
+ * donuste KeycloakProvider yakalar, Redux'a yazar, App.jsx dashboard'a gecer.
+ *
+ * error prop'u App.jsx'ten geliyor (Keycloak init fail veya /me fail).
+ */
+const LoginPage = () => {
+    const { login, status, error } = useKeycloak();
+    const isLoading = status === 'authenticating';
 
     return (
         <div className="login-page">
-            <div className={`login-card ${shake ? 'login-card--shake' : ''}`}>
+            <div className="login-card">
                 {/* Left decorative panel */}
                 <div className="login-card-left">
                     <div className="login-brand-bg"></div>
@@ -75,15 +48,17 @@ const LoginPage = ({ onLogin }) => {
                     </div>
                 </div>
 
-                {/* Right form panel */}
+                {/* Right auth panel */}
                 <div className="login-card-right">
                     <div className="login-form-container">
                         <div className="mb-8">
                             <h1 className="text-xl font-bold text-gray-900 tracking-tight">Welcome back</h1>
-                            <p className="text-sm text-gray-500 mt-1">Sign in to access your dashboard</p>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Sign in via Keycloak to access your dashboard
+                            </p>
                         </div>
 
-                        {/* Error */}
+                        {/* Error banner (Keycloak init / /me failure) */}
                         {error && (
                             <div className="flex items-center gap-2 px-3 py-2.5 mb-5 bg-red-50 border border-red-200/80 rounded-lg text-red-600 text-sm login-fade-in">
                                 <AlertCircle size={15} className="shrink-0" />
@@ -91,68 +66,26 @@ const LoginPage = ({ onLogin }) => {
                             </div>
                         )}
 
-                        {/* Form */}
-                        <form onSubmit={handleSubmit} className="space-y-5">
-                            <div>
-                                <label htmlFor="login-username" className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
-                                    Username
-                                </label>
-                                <div className="relative">
-                                    <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                    <input
-                                        id="login-username"
-                                        type="text"
-                                        placeholder="Enter your username"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
-                                        autoComplete="username"
-                                        autoFocus
-                                    />
-                                </div>
-                            </div>
+                        <button
+                            type="button"
+                            onClick={login}
+                            disabled={isLoading}
+                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-white text-sm font-semibold transition-all duration-200 shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 flex items-center justify-center gap-2"
+                        >
+                            {isLoading ? (
+                                <span className="login-spinner" />
+                            ) : (
+                                <>
+                                    <Shield size={16} />
+                                    Sign in with Keycloak
+                                    <ChevronRight size={16} />
+                                </>
+                            )}
+                        </button>
 
-                            <div>
-                                <label htmlFor="login-password" className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
-                                    Password
-                                </label>
-                                <div className="relative">
-                                    <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                    <input
-                                        id="login-password"
-                                        type={showPassword ? 'text' : 'password'}
-                                        placeholder="Enter your password"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
-                                        autoComplete="current-password"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                                        tabIndex={-1}
-                                    >
-                                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={isLoading || !username || !password}
-                                className="w-full mt-2 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-white text-sm font-semibold transition-all duration-200 shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 flex items-center justify-center gap-2"
-                            >
-                                {isLoading ? (
-                                    <span className="login-spinner" />
-                                ) : (
-                                    <>
-                                        Sign In
-                                        <ChevronRight size={16} />
-                                    </>
-                                )}
-                            </button>
-                        </form>
+                        <p className="text-[11px] text-gray-400 mt-4 text-center">
+                            You will be redirected to the CB-MDTM identity provider.
+                        </p>
                     </div>
 
                     <div className="text-center mt-8">
