@@ -113,8 +113,14 @@ export const selectAuthError = (state) => state.auth.error;
 export const selectUser = (state) => state.auth.user;
 export const selectUsername = (state) => state.auth.user?.username ?? null;
 export const selectTenantCode = (state) => state.auth.user?.tenantCode ?? null;
-export const selectRoles = (state) => state.auth.user?.roles ?? [];
-export const selectAllowedModules = (state) => state.auth.user?.allowedModules ?? [];
+// Referans stabil bos array'ler — her cagrida yeni [] uretmemek icin.
+// React-Redux'in default equality'si (referans) sonsuz re-render tetiklerdi.
+const EMPTY_ROLES = Object.freeze([]);
+const EMPTY_MODULES = Object.freeze([]);
+
+export const selectRoles = (state) => state.auth.user?.roles ?? EMPTY_ROLES;
+export const selectAllowedModules = (state) =>
+  state.auth.user?.allowedModules ?? EMPTY_MODULES;
 
 export const selectIsAuthenticated = (state) =>
   state.auth.status === 'authenticated' && !!state.auth.token;

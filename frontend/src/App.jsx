@@ -7,30 +7,41 @@ import SystemSettings from './components/SystemSettings/SystemSettings';
 import PdmModule from './components/PdmModule/PdmModule';
 import PlatformModule from './components/PlatformModule/PlatformModule';
 import LoginPage from './components/LoginPage';
+import { useKeycloak } from './auth/useKeycloak';
 
 function App() {
   const [activeMenu, setActiveMenu] = useState('live');
-  const [user, setUser] = useState(null); // { username, role, displayName }
-  const [liveDrillContext, setLiveDrillContext] = useState(null); // { assetId, componentId, windowStartUtc, windowEndUtc, alarmId }
+  const [liveDrillContext, setLiveDrillContext] = useState(null);
 
-  const handleLogin = useCallback((userData) => {
-    setUser(userData);
-  }, []);
+  // Auth state — mock 'user' useState'i yerine Redux'tan gelir
+  const { status, isAuthenticated, user, logout, error } = useKeycloak();
 
   const handleLogout = useCallback(() => {
-    setUser(null);
     setActiveMenu('live');
     setLiveDrillContext(null);
-  }, []);
+    logout(); // keycloak.logout() -> onAuthLogout event -> Redux authCleared
+  }, [logout]);
 
   const handleDrillThroughToLive = useCallback((payload) => {
     setLiveDrillContext(payload || null);
     setActiveMenu('live');
   }, []);
 
-  // Show login page if not authenticated
-  if (!user) {
-    return <LoginPage onLogin={handleLogin} />;
+  // Auth henuz init edilmedi (Keycloak check-sso calisiyor) — bos ekran
+  // Aksi halde LoginPage'i acar, arkadan authenticated=true gelirse iki
+  // kez render + istenmeyen ekran zıplamasi olur.
+  if (status === 'idle' || status === 'authenticating') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">
+        <div className="text-sm">Kimlik dogrulaniyor…</div>
+      </div>
+    );
+  }
+
+  // Kimliksiz -> LoginPage. Su an mock; P0.8'de "Sign in with Keycloak"
+  // butonuna dusurulecek.
+  if (!isAuthenticated) {
+    return <LoginPage error={error} />;
   }
 
   const renderContent = () => {
