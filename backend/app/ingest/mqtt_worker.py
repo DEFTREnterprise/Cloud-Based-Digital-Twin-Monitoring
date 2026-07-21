@@ -40,12 +40,13 @@ MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "factory/+/+/telemetry")
 
 # Idempotent insert: PK (ts_utc, asset_id, signal_id, source) cakisirsa atla.
+# tenant_id migration 0004'ten sonra ZORUNLU (NOT NULL); denormalize insert.
 INSERT_SQL = text("""
     INSERT INTO telemetry_measurements
-        (ts_utc, dt_id, asset_id, signal_id, source,
+        (ts_utc, tenant_id, dt_id, asset_id, signal_id, source,
          value_num, quality_flag, ingest_ts_utc, correlation_id)
     VALUES
-        (:ts_utc, :dt_id, :asset_id, :signal_id, :source,
+        (:ts_utc, :tenant_id, :dt_id, :asset_id, :signal_id, :source,
          :value_num, :quality_flag, :ingest_ts_utc, :correlation_id)
     ON CONFLICT (ts_utc, asset_id, signal_id, source) DO NOTHING
 """)
@@ -87,12 +88,14 @@ class IngestWorker:
             print(f"[WORKER] dogrulama hatasi, atlandi: {exc}", flush=True)
             return
 
-        # [2] COZ: dt_type -> dt_id, (dt_id, asset_code) -> asset_id
-        dt_id = self.resolver.dt_id(msg.dt_id)
-        if dt_id is None:
+        # [2] COZ: dt_type -> (dt_id, tenant_id), (dt_id, asset_code) -> asset_id
+        dt_tenant = self.resolver.dt_and_tenant(msg.dt_id)
+        if dt_tenant is None:
             self._skipped += 1
             print(f"[WORKER] bilinmeyen dt_type={msg.dt_id}, atlandi", flush=True)
             return
+        dt_id, tenant_id = dt_tenant
+
         asset_id = self.resolver.asset_id(dt_id, msg.asset_code)
         if asset_id is None:
             self._skipped += 1
@@ -115,6 +118,7 @@ class IngestWorker:
             flag = classify(r.value, lag, sig["range_min"], sig["range_max"])
             rows.append({
                 "ts_utc": msg.ts_utc,
+                "tenant_id": tenant_id,
                 "dt_id": dt_id,
                 "asset_id": asset_id,
                 "signal_id": sig["signal_id"],
