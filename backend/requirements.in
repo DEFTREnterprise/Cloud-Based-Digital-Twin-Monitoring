@@ -23,3 +23,6 @@ tenacity
 # --- Utils ---
 python-dotenv
 numpy
+python-jose[cryptography]==3.3.0
+httpx==0.27.2
+slowapi==0.1.9

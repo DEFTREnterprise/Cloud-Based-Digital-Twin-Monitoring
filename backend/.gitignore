@@ -1,2 +1,10 @@
 ﻿.env
 .venv/
+
+# IU explorer/debug outputs (sensitive)
+iu_*.json
+iu_snapshot*.json
+
+# Env files
+.env
+.env.local
