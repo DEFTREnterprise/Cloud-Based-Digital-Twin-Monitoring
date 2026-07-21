@@ -535,4 +535,4 @@ Yeni adımlar bu numaranın devamından gider.
 4. Docker Compose (PG + Keycloak) — 2 sa
 5. `deploy/RUNBOOK.md` — 1 sa
 
-**Ardından:** Local kuru koşusu (23 Tem), sunucu deploy (23 Tem).
+**Ardından:** Local kuru koşusu (23 Tem), sunucu deploy (23 Tem).x
