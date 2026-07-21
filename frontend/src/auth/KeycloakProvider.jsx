@@ -37,20 +37,25 @@ export default function KeycloakProvider({ children }) {
 
     dispatch(authStarted());
 
+    // Keycloak zaten authenticated ise (HMR/silent-sso) tekrar init cagirma;
+    // direkt Redux'a yaz. Aksi halde init et.
+    if (keycloak.authenticated && keycloak.token) {
+    handleAuthenticated();
+    } else {
     keycloak
-      .init(KEYCLOAK_INIT_OPTIONS)
-      .then((authenticated) => {
+        .init(KEYCLOAK_INIT_OPTIONS)
+        .then((authenticated) => {
         if (authenticated) {
-          handleAuthenticated();
+            handleAuthenticated();
         } else {
-          // check-sso: token yok, kullanici login butonuna basacak
-          dispatch(authCleared());
+            dispatch(authCleared());
         }
-      })
-      .catch((err) => {
+        })
+        .catch((err) => {
         console.error('[Keycloak] init failed', err);
         dispatch(authFailed('Keycloak baglanti hatasi'));
-      });
+        });
+    }
 
     // Keycloak-js event kancalari
     keycloak.onTokenExpired = () => {
