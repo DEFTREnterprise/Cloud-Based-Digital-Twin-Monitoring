@@ -2,7 +2,7 @@
 
 > **Bu dosya nedir?** Claude'un CB-MDTM projesinde nasıl davranacağını tanımlayan kalıcı talimat setidir.
 > `AI_CONTEXT.md` ile birlikte yeni sohbete eklenir. `AI_CONTEXT.md` = "ne yaptık / nerede kaldık", bu dosya = "nasıl çalışıyoruz".
-> **Son güncelleme:** 21 Temmuz 2026 — Faz 2.4.1 uçtan uca kapanışı + yeni tuzaklar.
+> **Son güncelleme:** 21 Temmuz 2026 akşamı — Faz 2.4.1 + 2.4.2 kapanışı + Ankara sunucusu hazır + IU sözlüğü netleşti + yeni tuzaklar.
 
 ---
 
@@ -10,7 +10,7 @@
 
 Yeni bir sohbet açtığında:
 1. `AI_CONTEXT.md` + `AI_WORKING_PROTOCOL.md` dosyalarını ekle.
-2. İlk mesajda kaldığın adımı söyle. Örnek: *"CB-MDTM devam — AI_CONTEXT §10 timeline 22 Tem. Otokar PdM backend endpoint'lerinden başla."*
+2. İlk mesajda kaldığın adımı söyle. Örnek: *"CB-MDTM devam — 22 Tem. Dün Faz 2.4.1 + 2.4.2 kapandı, IU akışı geri geldi. Bugün önce IU bridge duman testi, sonra Otokar PdM backend."*
 3. Claude bağlamı bu iki dosyadan yükler, gereksiz tekrar sormaz, doğrudan kaldığın adımdan devam eder.
 
 **Önemli:** Bu dosyaları eke koymak Claude'u şaşırtmaz; tam tersine tek doğru bağlam kaynağıdır.
@@ -24,7 +24,7 @@ Bu projede başarılı olmuş çalışma tarzı — aynen sürdürülecek:
 
 1. **Adım adım, tek seferde tek somut iş.** Her adım numaralı (ADIM N veya P0.X). Bir adım bitmeden sonrakine geçme; kullanıcının çıktıyı paylaşmasını bekle.
 
-2. **Komutlar Windows PowerShell formatında, kopyala-yapıştır hazır.** Tam yollar açık (örn. `& "C:\Program Files\PostgreSQL\17\bin\psql.exe"`).
+2. **Komutlar Windows PowerShell formatında, kopyala-yapıştır hazır.** Tam yollar açık (örn. `& "C:\Program Files\PostgreSQL\17\bin\psql.exe"`). Ankara deploy günü Linux'a geçince bash formatına dönülür — geçiş noktası açıkça belirtilir.
 
 3. **Kod verirken: tam dosya yolu + dosyanın tamamı veya net "şu satırı şununla değiştir" talimatı.** Kullanıcı kodu yapıştırıp çalıştırabilmeli.
 
@@ -46,22 +46,28 @@ Bu projede başarılı olmuş çalışma tarzı — aynen sürdürülecek:
 
 12. **Görev bittiğinde "başka bir şey var mı?" sorusuna cevap ver.** Sohbet sonunda kullanıcı açık kalanları sorarsa, tüm sohbeti tarayıp eksik/atlanmış işleri listele. "Zaten tamamdı" deme; sistematik gözden geçir.
 
+13. **Dış sistem sözlük varsayımları hızlı yanılabilir — teyit al.** IU örneği: 0006'yı "bearing sıcaklığı (°C)" varsaymıştık; Taha teyit edince "akustik ses seviyesi (dB)" çıktı. Bir dış sistem entegrasyonunda değer aralığından çıkarım yaparken *sözlüğü mutlaka sistem sahibine doğrulat*. Belge de yanlış olabilir; kesin cevap = sistem sahibinden yazılı teyit.
+
 ---
 
 ## 3. GÖREV DAĞILIMI (efor: SK %50 / DK %25 / ZG %25)
 
-- **SK (ana sorumlu):** Yüksek know-how — worker çekirdeği, JWT/OIDC, deployment, güvenlik, mimari kararlar, yük testi liderliği, IU bridge, frontend auth entegrasyonu.
+- **SK (ana sorumlu):** Yüksek know-how — worker çekirdeği, JWT/OIDC, deployment, güvenlik, mimari kararlar, yük testi liderliği, IU bridge, frontend auth entegrasyonu, Pixel Streaming.
 - **DK (destek):** Net kapsamlı/şablonlu — DB migration, seed, mock publisher, Keycloak rol/tenant formları (arayüzden), smoke test, **frontend iskelet ve mock veri katmanları**.
-- **ZG (destek):** Sınırlı kapsamlı API — Query/SSE/KPI uçları, dependency şablonu (SK temeli üzerine), MinIO/upload.
+- **ZG (destek):** Sınırlı kapsamlı API — Query/SSE/KPI uçları, dependency şablonu (SK temeli üzerine), MinIO/upload, **Ankara sunucu OS/altyapı kurulumu**.
 - **Ortak (TÜM) görevlerde liderlik daima SK'de.** DK/ZG kendi katman adımlarını koşar; know-how karmaşası yaratılmaz.
 
 **Entegrasyon paterni:** DK/ZG bağımsız kaynak üretir (kendi klasörlerinde) → SK bunları `AI_CONTEXT.md` §3 klasör yapısına ve §5 gerçek şemaya **adapte ederek** entegre eder. ZG'nin kendi database.py/models'i KULLANILMAZ; sadece router/sorgu mantığı alınıp DK şemasına uyarlanır.
 
 **DK frontend deseni:** Frontend'de DK sağlam bir katmanlı mimari kurdu (config → transport → adapter/hook → composite → container → view). Faz 2.4.1 auth patchleri bu deseni bozmadı — sadece 8 dosyada minimal ekleme yapıldı. Yeni frontend işleri de bu katmanlı desene uymalı: view API çağırmaz, adapter backend şemasını bilir, hook state yönetir, container UI orkestra eder.
 
+**ZG Ankara sunucu deseni:** ZG fiziksel sunucuda temel yığını (Docker + Python + nginx + git + UFW) kurdu ve test etti. Kurulum kayıtları `deploy/ankara-server-README.md` içinde. SK Ankara'ya gittiğinde uygulama katmanını (Docker Compose + Keycloak realm + FastAPI systemd + Unreal Pixel Streaming servisi) ZG'nin altyapısı üzerine çıkarır. SSH erişimi (openssh-server + authorized_keys) ZG'nin bıraktığı iş, deploy'a başlamadan önce SK tarafında.
+
 ---
 
 ## 4. BİLEŞENLERİ ÇALIŞTIRMA (referans komutlar)
+
+### Windows dev (SK, günlük)
 
 Hepsi `backend` klasöründe, venv aktif (`.\.venv\Scripts\Activate.ps1`). Her biri AYRI pencerede, paralel:
 
@@ -91,6 +97,10 @@ $env:KC_BOOTSTRAP_ADMIN_PASSWORD = "admin"
 cd frontend
 npm run dev
 # http://localhost:5173
+
+# Frontend prod build test (Ankara deploy oncesi rutin)
+npm run build
+# dist/*.js icinde __store, gizli anahtar vb. grep
 
 # Seed (gerekirse)
 cd tools
@@ -144,6 +154,37 @@ $h = @{ Authorization = "Bearer $T" }
 Invoke-RestMethod "http://localhost:8000/api/v1/me" -Headers $h
 ```
 
+### Ankara sunucu (Linux, deploy günü)
+
+ZG'nin kurduğu ortam. `deploy/ankara-server-README.md` içinde tam kayıt.
+
+```bash
+# Docker + Compose sagligi
+docker --version
+docker compose version
+docker ps
+
+# Servisler (systemd sonrasi, Faz 3'te tanimlanacak)
+systemctl status matisse-api
+systemctl status matisse-worker
+systemctl status matisse-bridge
+systemctl status matisse-signaling   # Unreal Pixel Streaming
+systemctl status nginx
+systemctl status matisse-pg
+systemctl status matisse-keycloak    # Docker Compose managed'lar burada da gorunmez, docker compose ps ile bakilir
+
+# Log
+sudo journalctl -u matisse-api -f
+docker compose -f /opt/matisse/docker-compose.yml logs -f
+
+# nginx test
+sudo nginx -t
+sudo systemctl reload nginx
+
+# UFW durum
+sudo ufw status verbose
+```
+
 ---
 
 ## 5. SIK KARŞILAŞILAN TUZAKLAR (öğrenilmiş dersler)
@@ -156,6 +197,7 @@ Invoke-RestMethod "http://localhost:8000/api/v1/me" -Headers $h
 - **Windows filesystem case-insensitive; Ubuntu case-sensitive.** `KeycloakProvider.jsx` küçük k ile yaratılırsa Windows'ta çalışır, Ubuntu'da patlar. `git mv` two-step ile düzelt: `git mv keycloakProvider.jsx tmp` → `git mv tmp KeycloakProvider.jsx`.
 - **PowerShell 5.1 ile PS 7 komut farkı.** `Invoke-WebRequest -SkipHttpErrorCheck` PS 7+; 5.1'de yok. Alternatif: try/catch ile `$_.Exception.Response.StatusCode.value__`.
 - **PowerShell `git status --short frontend/src/auth`** cwd'ye göre çözer; auth klasöründeysen "frontend/src/auth/frontend/src/auth" arar → boş çıktı. Repo kökünden çalıştır.
+- **PowerShell varsayılan console encoding'i UTF-8 değil.** `Get-Content` `.md` dosyasını `windows-1252` gibi okur, Türkçe karakter bozuk gösterir. `Get-Content ... -Encoding UTF8` ile aç. Dosya UTF-8 olsa bile PowerShell yorumu bozar.
 
 ### PostgreSQL / asyncpg / TimescaleDB
 - **asyncpg NULL-tip katı.** `(:param IS NULL OR col=:param)` deseni patlar → sorguyu filtreli/filtresiz ikiye ayır.
@@ -180,14 +222,17 @@ Invoke-RestMethod "http://localhost:8000/api/v1/me" -Headers $h
 - **Redux selector `?? []` referans tuzağı.** `state.x?.list ?? []` her çağrıda yeni `[]` referans üretir → React-Redux gereksiz re-render + konsol uyarısı ("returned a different result"). Çözüm: modül seviyesinde `const EMPTY = Object.freeze([])` tanımla, selector'da o sabiti dön. Ya da `createSelector` ile memoize et.
 - **HMR + `useRef(initialized)` init tuzağı.** `KeycloakProvider` gibi bir kez çalışacak useEffect'te `if (initialized.current) return;` koyunca HMR sonrası ref kalıcı olarak `true` kalıyor → Redux boş. Fallback ekle: `if (keycloak.authenticated && keycloak.token) handleAuthenticated(); else keycloak.init(...)`.
 - **Konsoldan `await import('/src/store/index.js')` farklı store instance dönebiliyor.** Vite dev'de HMR + dinamik import modül önbelleğini duplike edebilir. Dev'de gerçek store'a erişmek için `main.jsx`'e `if (import.meta.env.DEV) window.__store = store` ekle; konsoldan `window.__store.getState()` ile oku.
-- **`window.__store` prod build'de kaybolmalı.** `import.meta.env.DEV` tree-shake'lenmeli. Prod build sonrası `dist/*.js` içinde `window.__store` grep'i boş dönmeli — canlıya çıkmadan önce doğrula.
+- **`window.__store` prod build'de kaybolmalı.** `import.meta.env.DEV` tree-shake'lenmeli. Her release'de `npm run build` sonrası `dist/assets/*.js` içinde `Select-String __store` grep boş dönmeli. 21 Tem'de test edildi, temiz. Ama her bundle değişikliğinde tekrar doğrula (Vite/plugin sürüm bump'ı kırar).
 - **Vite `.env` dev sunucuyu restart etmeden okunmuyor.** `.env` değiştirdiysen `npm run dev`'i durdur/başlat.
+- **Keycloak realm rolleri arasında teknik roller** (`default-roles-<realm>`, `offline_access`, `uma_authorization`) UI'da bilgi taşımaz. Footer'da/header'da rol gösterirken `roles[0]` alma; `selectPrimaryRole` gibi filtreli bir selector kullan (bkz. `authSlice.js`). Aksi halde `esogu_op` gibi kullanıcılar "default-roles-cbmdtm" görür, yanıltıcı.
+- **Frontend bundle 1.78 MB.** Ankara localhost + LAN için tolere edilir; ama internet üzerinden erişim gerektiğinde ilk yükleme yavaşlar. Dynamic import ile code-split Faz 3 sonrasına planlı.
 
 ### Git / commit hijyeni
 - **`git commit -m` boş stage'de sessiz geçer.** Bir şey commit'lendi sanma; `git status` ile kontrol et. "Nothing to commit, working tree clean" görmeden ilerleme.
 - **`git status` çıktısında `M` (working tree) vs `M ` (staged) farkı.** İlk sütun stage, ikinci sütun working tree. Solda boşluk varsa stage'e alınmamış demek.
 - **Windows CRLF/LF uyarısı zararsız** ama Ubuntu deploy'unda `.gitattributes` ile normalize et. `git add` sırasında "LF will be replaced by CRLF" uyarısı çıkabilir; commit'i etkilemez.
 - **Uzun sohbette commit borcu birikirse toplu commit dağıtımı yap:** mantıklı gruplara böl (backend güvenlik, tenant izolasyon, IU, deploy, AI runtime, frontend patch). Her grup ayrı commit, sonra tek push. Böylece `git log` okunabilir kalır.
+- **`git add DOSYA1 DOSYA2` kullanırken PowerShell backtick continuation'ı kullanmıyorsan, ikinci dosya yolu için ayrı `git add` at.** Aksi halde ilk hata sessizce ötekini de yutabiliyor.
 
 ### Keycloak
 - **Keycloak 24+: user attribute'leri için Realm settings → Unmanaged Attributes = Enabled olmalı,** yoksa UI'da Attributes sekmesi gözükmez.
@@ -204,15 +249,26 @@ Invoke-RestMethod "http://localhost:8000/api/v1/me" -Headers $h
 ### IU (Infinite Uptime) API
 - **IU `/plants` boş dönerse (`status:true, data:[]`)** hesabın plant read yetkisi yok demek — endpoint patlamaz, "success ama boş" döner. Login başarılı + veri boş = yetki eksik senaryosu, karıştırılmasın.
 - **IU JWT 12 saatlik;** `exp - 60 sn` kalınca proaktif refresh. Token base64-decode ile exp okunur, imza doğrulama gerekmez (dış sistem).
-- **IU `basic-features` dakikada 1, `computed-features` 30 dakikada 1** (belge yanlış; snapshot'tan gözlendi).
+- **IU `basic-features` dakikada 1, `computed-features` ~30 dakikada 1** (belge yanlış; snapshot'tan + Taha teyidiyle gözlendi). Computed'de araya olay tetiklemeli ek kayıtlar giriyor — yani "tam 30 dk periyodik" değil, "~30 dk periyodik + spike'larda ek".
 - **IU `computed-features.timestamp` string olarak epoch ms** (`"1783937867000"`), ISO değil. Belge yanlış.
-- **IU'da `basic-features` kod anahtarları** (`"0001".."0006"`) fiziksel anlamı belgede yok — değer aralıklarından çıkarım + Taha teyit.
+- **IU'da `basic-features` kod anahtarları** (`"0001".."0006"`) Taha teyidi ile netleşti (21 Tem):
+  - 0001 = toplam ivme (g)
+  - 0002/0003/0004 = X/Y/Z ekseni titreşim hız RMS (mm/s) — "titreşim ivmesi g" DEĞİL, "hız RMS mm/s"
+  - 0005 = sıcaklık (°C)
+  - 0006 = akustik ses seviyesi (dB) — "bearing sıcaklığı" DEĞİL. Değer aralığından çıkarım yanıltıcıydı; teyit almadan sözlüğe kesin karar verme.
+- **IU'da hazır threshold yok.** Otokar "alert list" tutuyor ama sadece o anki değer; threshold hesabı Otokar tarafında running-mode gözlemiyle manuel. Bizim tarafta da benzer yaklaşım — Faz 3 sonrası analitik katman.
+- **IU teknik konularında yetkili Ali Kemal Bey (Otokar).** Taha yönlendirdi. Mail açılışı: "Taha Bey yönlendirdi, ..." Yeni sensör, threshold detayı, uzun kesinti nedeni gibi konularda doğrudan.
 - **JWT/access token'ı paylaşırken exp'sine dikkat:** IU token'ı 12 saatlik; sohbete yapıştırılırsa kim alıyorsa istek atabilir. `.gitignore`'a `iu_*.json` ekli olsun.
+
+### Dış sistem entegrasyonu (genel)
+- **Sözlük varsayımlarını sistem sahibinden teyit al.** Değer aralıklarından çıkarım hızlı yanılır. IU 0006 örneğinde `~57-63` aralığı "bearing sıcaklığı °C" düşündürüyordu, gerçek "akustik dB". Migration açtıktan sonra bile sözlük tashih edilebilmelidir — `catalog.py` + `signal_catalog.unit` UPDATE hazır olsun.
+- **Uzun kesintiler donanım kaynaklı olabilir.** IU 8 gün kesintide "network problem" ihtimali yerine "monitör arızası" çıktı. Sohbete bloke yazarken "dış sisteme mail attık, bekliyoruz, mock ile devam" deseni doğru.
+- **Yetkili kişi zinciri kayıt altında olsun.** "Taha Bey → Ali Kemal Bey" gibi yönlendirmeler zaman geçince unutulur. `AI_CONTEXT §2 / Otokar iletişim` bloğunda listeli tut.
 
 ### Diğer
 - **catalog.py tek kaynak.** Seed ile mock publisher'ın sinyal tanımı senkron olmalı.
 - **Publisher payload sözleşmesi sabit.** IU bridge de aynı formatı takip eder (topic + payload birebir aynı). Worker dokunulmaz.
-- **Sohbete şifre paylaşımı** — token/password sohbete geçtiyse ilk fırsatta değiştir. Hijyen kuralı; abartma ama es geçme.
+- **Sohbete şifre paylaşımı** — token/password sohbete geçtiyse ilk fırsatta değiştir. Hijyen kuralı; abartma ama es geçme. IU şifresi 21 Tem'de rotate edildi.
 
 ---
 
@@ -232,7 +288,7 @@ Claude'dan istenebilir: *"AI_CONTEXT'i güncel duruma göre revize et"* → gün
   - Kısa özet (bugün ne yapıldı, hangi kararlar alındı)
   - `AI_CONTEXT.md` §11 için "N Ay durum özeti" taslağı
   - Bir sonraki sohbette başlangıç cümlesi + ilk 3 iş
-  - Bekleyen dış bağımlılık listesi (Taha, IT, ekip)
+  - Bekleyen dış bağımlılık listesi (Taha, Ali Kemal, DEFTR IT, ekip)
 
 ---
 
@@ -255,6 +311,7 @@ Claude'dan istenebilir: *"AI_CONTEXT'i güncel duruma göre revize et"* → gün
 | `app/ingest/resolver.py` | dt_type/asset_code/signal_code → UUID cache | Yeni resolve tipi |
 | `app/services/audit.py` | audit_event async insert | Audit alan ekleme |
 | `tools/otokar_iu_bridge.py` | IU → MQTT bridge | IU payload değişikliği |
+| `tools/catalog.py` | Signal + asset katalog (tek kaynak) | IU sözlük tashihi, yeni sinyal |
 | `tools/seed.py` + `seed_test_tenants.py` | DB seed | Test verisi |
 
 ### Frontend (DK'nın katmanlı deseni + Faz 2.4.1 auth eklemesi)
@@ -269,8 +326,9 @@ Claude'dan istenebilir: *"AI_CONTEXT'i güncel duruma göre revize et"* → gün
 | Hook (composite) | `src/hooks/useLiveMonitoringData.js` | Modül veri yüzü | Modül veri ihtiyacı |
 | Container | `src/components/LiveMonitoring/LiveMonitoring.jsx` | UI state + prop dağıtımı | Yeni panel/bileşen |
 | View | `src/components/LiveMonitoring/*.jsx` | Saf render | Görsel değişiklik |
+| View | `src/components/LiveMonitoring/DigitalTwinViewer.jsx` | Unreal Pixel Streaming iframe | Retry stratejisi, "manuel bağlan" düğmesi (Faz 3) |
 | Store | `src/store/index.js` | Redux configureStore | Yeni slice |
-| Store | `src/store/slices/authSlice.js` | Auth state + selectors | Auth model değişikliği |
+| Store | `src/store/slices/authSlice.js` | Auth state + selectors (selectPrimaryRole, selectAllowedModules dahil) | Auth model değişikliği |
 | Store | `src/store/slices/apiKeySlice.js` | STLC API key state | STLC ihtiyacı |
 | Auth | `src/auth/keycloakConfig.js` | Keycloak singleton + init options | Realm/client değişince |
 | Auth | `src/auth/KeycloakProvider.jsx` | Init + login akışı + /me + refresh timer + Redux dispatch | Auth logic |
@@ -286,6 +344,7 @@ Claude'dan istenebilir: *"AI_CONTEXT'i güncel duruma göre revize et"* → gün
 5. SSE kontratı sabit: `event: telemetry`, `data: {asset_id, signal_id, ts, value, quality}`. UUID → kod eşlemesi katalog üzerinden.
 6. **Auth state Redux'ta,** component'ler `useSelector` ile okur. Keycloak singleton API'sine ihtiyaç olan yerler `useKeycloak()` hook'unu kullanır.
 7. **Modül id'ler frontend Sidebar `item.id` referansı;** backend `authz.py` MODULE_ROLES bu id'lere hizalı. Yeni modül eklerken iki tarafı beraber güncelle.
+8. **Rol gösterimi `selectPrimaryRole` üzerinden.** `roles[0]` alma; Keycloak teknik rollerini (`default-roles-*`, `offline_access`, `uma_authorization`) atlayan filtreli selector.
 
 ---
 
@@ -293,9 +352,11 @@ Claude'dan istenebilir: *"AI_CONTEXT'i güncel duruma göre revize et"* → gün
 
 | Kaynak | Beklediğimiz | Etki |
 |---|---|---|
-| **Taha (OTOKAR)** | IU 14 Tem kesinti nedeni + feature sözlüğü teyidi + computed polling sıklığı | Bridge canlı test + signal mapping tune |
-| **DEFTR IT** | Public statik IP + DNS + firewall (443, 22, opsiyonel 8883) | Ankara deploy (22-23 Tem) |
-| **DK** | Frontend rol modeli 7→3 daralma onayı | Faz 2.4.1 P0.8 kapanış teyidi |
+| **Taha (OTOKAR)** | Genel iletişim + IU akış durumu bildirimi | ✅ 21 Tem: IU akışı geri geldi + feature sözlüğü teyidi |
+| **Ali Kemal Bey (OTOKAR — IU sorumlusu)** | Threshold hesaplama danışmanlığı, uzun kesinti nedeni, yeni sensör bilgisi (gerekirse) | Faz 3 sonrası. Mail: "Taha Bey yönlendirdi, ..." |
+| **DEFTR IT** | Public statik IP + DNS (`matisse.deftr.com` A kaydı) + firewall dışarı yönlendirme (443 → Ankara sunucu) | Ankara deploy (27 Tem). Cevap gelmezse plan B: LAN'da HTTP ile ilk kanıt, TLS 28 Tem sonrasına. |
+| **DK** | Frontend rol modeli 7→3 daralma onayı | ✅ İnisiyatif SK'da, sormaya gerek yok. |
+| **ZG** | Ankara sunucu OS/altyapı (Docker, Python, nginx, UFW, git) + SSH hazırlığı | ✅ 21 Tem'den önce yapıldı, `deploy/ankara-server-README.md`. SSH kısmı SK deploy günü tamamlayacak. |
 | **Anthropic (Claude)** | Uzun sohbette context sınırı hissedilirse → yeni sohbet + AI_CONTEXT güncelleme | Süreklilik |
 
 ---
@@ -311,13 +372,10 @@ Yeni sohbet açtığında:
 **2. İlk mesaj — kaldığın yeri net söyle:**
 
 Örnek (22 Temmuz sabahı):
-> *"CB-MDTM devam — AI_CONTEXT §10 timeline 22 Tem. Otokar PdM backend endpoint'lerinden başla."*
+> *"CB-MDTM devam — 22 Tem. Dün Faz 2.4.1 + 2.4.2 kapandı, IU akışı geri geldi. Bugün önce IU bridge duman testi + sözlük tashihi, sonra Otokar PdM backend."*
 
-Ya da IU akışı geri gelirse:
-> *"CB-MDTM devam. Taha cevap verdi, IU akışı düzeldi. Bridge canlı testi yapacağız — Aşama 4 kaldığı yerden. AI_CONTEXT §7 IU entegrasyon bloğuna bak."*
-
-Ya da Ankara deploy gününde:
-> *"CB-MDTM devam. Bugün 23 Temmuz, Ankara deploy günü. AI_CONTEXT §10 timeline. Sunucuya SSH ile bağlandım, Docker Compose kurulu, ilk migration'ı çalıştıracağız."*
+Ya da bir gün Ankara'da:
+> *"CB-MDTM devam — 27 Tem, Ankara deploy günü. Sunucuya SSH ile bağlandım. `deploy/RUNBOOK.md` üzerinden gidiyoruz. İlk migration'ı çalıştıracağız."*
 
 **3. Kural:**
 - Claude'a "bana özet ver" deme — dosyalarda zaten var, sadece kalınan noktayı belirt.
@@ -340,4 +398,18 @@ $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 # Git durum + push borcu
 git status --short
 git log --oneline origin/main..HEAD  # push'lanmamış commit'ler
+
+# Frontend prod build sanity
+cd frontend
+npm run build
+Get-ChildItem dist\assets -File | Select-String -Pattern "__store" -SimpleMatch  # bos donmeli
+cd ..
 ```
+
+**5. Ankara günü hızlı hatırlatıcı (deploy):**
+- SSH → sunucu (openssh-server + authorized_keys hazır olmalı)
+- `docker compose ps` — PG + Keycloak sağlığı
+- `systemctl status` — API, worker, bridge, nginx, signaling
+- `nginx -t && systemctl reload nginx`
+- `curl -k https://matisse.deftr.com/health` — DNS + TLS
+- İlk gerçek kullanıcı login testi (Keycloak realm import edilmiş olmalı)
