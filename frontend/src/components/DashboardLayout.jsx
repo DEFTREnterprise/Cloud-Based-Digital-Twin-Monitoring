@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
+import { useSelector } from 'react-redux';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import { selectPrimaryRole } from '../store/slices/authSlice';
 
 const DashboardLayout = ({ children, activeMenu, setActiveMenu, user, onLogout }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Header ve child modullere gecirilecek tekli rol (drill-through gibi
-  // yerlerde kullaniliyorsa). Yeni sema: user.roles bir array; ilk role'i
-  // aliyoruz (ornekler: 'OTOKAR_Viewer', 'ESOGU_Operator', 'DEFTR_Admin').
-  const currentRole = user?.roles?.[0] ?? null;
+  // Child modullere gecirilecek anlamli rol. Keycloak teknik rollerini
+  // (default-roles-*, offline_access, uma_authorization) atlar; ilk anlamli
+  // realm rolunu doner (ornek: OTOKAR_Viewer, ESOGU_Operator, DEFTR_Admin).
+  const currentRole = useSelector(selectPrimaryRole);
 
   return (
     <div className="flex h-screen bg-gray-50">

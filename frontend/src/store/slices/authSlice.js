@@ -133,4 +133,27 @@ export const selectIsAuthenticated = (state) =>
 export const selectHasModule = (moduleId) => (state) =>
   (state.auth.user?.allowedModules ?? []).includes(moduleId);
 
+// ---------------------------------------------------------------------------
+// PRIMARY ROLE — Keycloak default rollerini atlayarak anlamli rolu doner.
+// Neden gerekli: Keycloak realm rolleri arasinda otomatik olarak
+//   'default-roles-<realm>', 'offline_access', 'uma_authorization' gibi
+// teknik roller de gelir. Bunlar UI'da bilgi tasimaz; ilk anlamli rolu
+// (ornekler: OTOKAR_Viewer, ESOGU_Operator, DEFTR_Admin) gostermek isteriz.
+// ---------------------------------------------------------------------------
+const TECHNICAL_ROLE_PATTERNS = [
+    /^default-roles-/,
+    /^offline_access$/,
+    /^uma_authorization$/,
+];
+
+export const selectPrimaryRole = (state) => {
+    const roles = state.auth.user?.roles;
+    if (!Array.isArray(roles) || roles.length === 0) return null;
+    const meaningful = roles.find(
+        r => !TECHNICAL_ROLE_PATTERNS.some(pat => pat.test(r))
+    );
+    return meaningful ?? roles[0];
+};
+
+
 export default authSlice.reducer;

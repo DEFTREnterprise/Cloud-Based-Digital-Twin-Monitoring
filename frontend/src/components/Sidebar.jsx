@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { Eye, Settings, Route, Workflow, Activity, ChevronLeft, ChevronRight, Shield } from 'lucide-react';
-import { selectAllowedModules, selectUser } from '../store/slices/authSlice';
+import { selectAllowedModules, selectUser, selectPrimaryRole } from '../store/slices/authSlice';
 
 /**
  * Sidebar — Backend /me.allowed_modules'e gore modul listesi.
@@ -23,6 +23,7 @@ const ALL_MENU_ITEMS = [
 const Sidebar = ({ activeMenu, setActiveMenu, isCollapsed, setIsCollapsed }) => {
     const allowedModules = useSelector(selectAllowedModules);
     const user = useSelector(selectUser);
+    const primaryRole = useSelector(selectPrimaryRole);
 
     // /me'den gelen id listesini menude filtre olarak kullan.
     // Sira ALL_MENU_ITEMS sirasidir (menu duzeni stabil).
@@ -108,7 +109,9 @@ const Sidebar = ({ activeMenu, setActiveMenu, isCollapsed, setIsCollapsed }) => 
                     </div>
                     <div className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>
                         <p className="text-xs font-medium text-gray-300 truncate">{user?.username ?? 'Unknown'}</p>
-                        <p className="text-[10px] text-gray-500 truncate">{tenantLabel} · {user?.roles?.[0] ?? '-'}</p>
+                        <p className="text-[10px] text-gray-500 truncate">
+    {tenantLabel} · {primaryRole ?? '-'}
+</p>
                     </div>
                 </div>
             </div>
