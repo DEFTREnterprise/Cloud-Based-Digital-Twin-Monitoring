@@ -155,5 +155,4 @@ export const selectPrimaryRole = (state) => {
     return meaningful ?? roles[0];
 };
 
-
 export default authSlice.reducer;
