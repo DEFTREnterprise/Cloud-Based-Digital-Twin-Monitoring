@@ -391,7 +391,8 @@ PostgreSQL+TimescaleDB+Mosquitto+venv+FastAPI iskelet+/health. Mock publisher.
 | **Digital Twin viewer retry loop** (`DigitalTwinViewer.jsx:32`) | SK | ⏸ Orta öncelik. Ankara'da Unreal ayakta olduğunda konsol temiz olacak. Backoff + "manuel bağlan" düğmesi Faz 3'te. |
 | **Bundle 1.78 MB code-split** | SK | ⏸ Faz 3 sonrası. Ankara için tolere (localhost + LAN). |
 | **IU threshold hesaplama** | SK + Ali Kemal | ⏸ Faz 3 sonrası. IU'da hazır threshold yok; running-mode gözlemiyle bizim tarafta hesaplanacak. |
-
+| **IU 0001 birim netleştirme** (g vs m/s²) | Taha | ⏸ Mail bekliyor. Fotoğrafta `(m/s²)² rms` etiketi görünüyor (üs 2 muhtemelen görsel hata, doğrusu m/s² rms). Taha ilk mesajda g demişti. Kesin cevap gelene kadar `catalog.py`'de m/s² olarak yaz, cevap geldiğinde ya değiştir ya doğrula. |
+| **IU sensor ham örnekleme frekansı** (Ali Kemal) | Ali Kemal Bey (Taha üzerinden) | ⏸ Mail bekliyor. API 1 dk RMS mi veriyor yoksa altında ham örnekleme uçu var mı? MVP için mevcut sıklık (basic 60 sn, computed 30 dk) yeterli ama netleştirilmeli. |
 ---
 
 ## 9. ADIM NUMARALANDIRMA
@@ -407,20 +408,56 @@ Sıradaki adım no: **STEP 27+** (Blok 2 sertleştirme, Ankara öncesi).
 
 ---
 
-## 10. ANKARA TİMELİNE (27 Tem — güncel)
+## 10. ANKARA TİMELİNE (27 Tem kaydı sonrası — güncel 28 Tem)
 
 | Tarih | İş | Süre | Sonuç |
 |---|---|---|---|
-| **21 Tem (bugün)** | Faz 2.4.1 + 2.4.2 kapanış + IU akışı teyit + AI runtime güncelleme | ✅ TAMAM | Kapanış |
-| **22 Tem** | IU bridge duman testi + IU sözlük tashihi + Otokar PdM backend | 5-6 sa | PdM canlı IU verisiyle beslenmeye başlar |
-| **22 Tem akşam** | Blok 2 sertleştirme STEP 27-34 | 3 sa | Prod hardening |
-| **23 Tem** | Docker Compose + `deploy/RUNBOOK.md` + Unreal Pixel Streaming paketleme | 4 sa | Deploy paketi |
-| **24 Tem** | Local'de tam Ankara topolojisi kuru koşusu | 2 sa | End-to-end doğrulama |
-| **25-26 Tem** | Buffer + son test + Ankara kutusu için son check | — | Deploy hazırlığı |
-| **27 Tem** | 🎯 **Ankara canlı deploy** (SK sahada) | 1 gün | Milestone |
-| **28 Tem** | Stabilizasyon + konsorsiyum sunum hazırlığı | Yedek | Yedek |
+| **21-27 Tem** | Faz 2.4.1 + 2.4.2 + IU bridge + Ankara sunucu hazır. Uçtan uca canlı akış henüz kanıtlanmadı (IU akışı 21 Tem geldi ama demo koşulmadı). | — | Backend + frontend auth tam, altyapı hazır |
+| **28 Tem (bugün)** | ⚠️ **MVP hazırlık günü.** Öncelik sırası: (1) IU sözlük tashihi 15 dk, (2) IU bridge duman testi 30 dk, (3) **uçtan uca canlı akış demosu 2-3 sa** — MVP demonun kendisi. Zaman kalırsa PdM `/monitors` heuristik + ekran bağlama. | 4-6 sa | MVP demosu koşulmuş, kanıtlanmış |
+| **29 Tem (yarın)** | 🎯 **Konsorsiyum toplantısı — MVP sunumu.** Canlı akış demosu (IU → dashboard KPI). SK sunuma odaklı. | — | Milestone |
+| **29 Tem akşam / 30 Tem** | Toplantı sonrası: Otokar geri bildirim + Ankara deploy başlangıcı (uzaktan, SSH). SSH erişimi kurulumu + Docker Compose + Keycloak realm import + FastAPI systemd. | 4-6 sa | Sunucu ayakta |
+| **30-31 Tem** | Blok 2 sertleştirme (STEP 27-34) + Unreal Pixel Streaming servisi + nginx + TLS (DEFTR IT'nin verdiği IP/DNS'e göre) | 6-8 sa | Prod hardening |
+| **1 Ağustos** | `deploy/RUNBOOK.md` + son kuru koşuş + stabilizasyon | 3 sa | Deploy paketi kayıtlı |
+| **Ağustos ilk hafta** | PdM ekranı canlı bağlama (heuristik alarm + monitors) + Faz 4 geçişi | — | Faz 3 kapanış |
 
-**Yeni gerçekçilik:** 27 Tem'e 6 tam gün var. Faz 2.4.1 kapandı, IU akışı geldi, sunucu hazır. Buffer 2-3 gün — güvenli. DEFTR IT (DNS + firewall) 25 Tem'e kadar cevap vermezse plan B: DEFTR ofis LAN'da HTTP ile ilk kanıt, TLS + domain 28 Tem sonrasına.
+**Değişiklikler:**
+- **20 Tem hedefi → 27 Tem → 29 Tem MVP.** 27 Tem'de Ankara deploy planlıydı ama SK yarın konsorsiyum için MVP demoya odaklandı; deploy MVP sonrasına kaydı.
+- **Deploy artık uzaktan** (SSH), fiziksel Ankara ziyareti kalktı.
+- **Bugünkü kritik iş uçtan uca canlı demo.** Ankara sunucusuna kod atmadan, dev makinasında IU→frontend zincirinin canlı geldiğini görmek. Konsorsiyum sunumunda gösterilecek şey bu.
+
+### 28 Tem — MVP hazırlık — sıralı iş
+
+**Sabah (3-4 sa):**
+1. `catalog.py` IU sözlük tashihi (0001=m/s² rms, 0002=eksenel mm/s, 0003=dikey mm/s, 0004=yatay mm/s, 0005=°C, 0006=dB) + `signal_catalog.unit` UPDATE + seed rerun — **15 dk**
+2. IU bridge duman testi — `python tools\otokar_iu_bridge.py`, DB'de `source='REAL'` satırların düştüğünü doğrula — **30 dk**
+3. **Uçtan uca canlı akış demosu** — broker+worker+backend+frontend hepsi ayakta, IU verisi bridge üzerinden gerçek zamanlı akıyor, frontend `otokar_user` ile giriş yaptığında Live Monitoring KPI kartları canlı hareket ediyor — **2-3 sa**
+
+**Öğleden sonra (buffer):**
+- PdM `/monitors` endpoint + heuristik `/alarms` (opsiyonel, zaman kalırsa)
+- Sunum notları, demo senaryosu prova
+- Ekran görüntüsü/video hazırlığı (canlı akış yakalanmayacak durumda backup olarak)
+
+### MVP demo senaryosu (yarın konsorsiyumda)
+
+1. **Login:** `otokar_user` → Keycloak → dashboard (multi-tenant izolasyon vurgusu)
+2. **Live Monitoring:** OTOKAR DT seçili → 12 MOTOR asset listeleniyor → sinyal kartları canlı IU verisiyle güncelleniyor
+3. **KPI göstergesi:** ingest_lag_p95, quality_ok_pct, event_count — gerçek sayılar
+4. **Timeseries widget:** son 1 saat penceresi, gerçek IU değerleri
+5. **Rol farkı:** `deftr_admin` ile logout/login → 6 modül görünür, cross-tenant admin
+6. **Backend güvenlik:** `esogu_op` OTOKAR asset'lerini görmediği kanıtı (isteğe göre)
+
+### Deploy (MVP sonrası)
+
+- Uzaktan SSH ile ZG'nin hazırladığı sunucuya bağlan
+- Docker Compose çalıştır (PG + Keycloak)
+- Repo'yu clone, backend venv + migrations + seed
+- Keycloak realm import (`deploy/keycloak/cbmdtm-realm.json`)
+- Frontend `npm run build` → `/var/www/matisse/` altına
+- nginx config + Let's Encrypt (DEFTR IT'nin DNS onayına göre)
+- systemd unit'ler (matisse-api, matisse-worker, matisse-bridge, matisse-signaling)
+- Kuru koşuş → canlı
+
+**Ankara için buffer:** 2-3 iş günü daha kaydı; ama uzaktan yapıldığı için fiziksel seyahat riski yok. Toplantı sonrası derhal başlayabilir.
 
 ---
 
