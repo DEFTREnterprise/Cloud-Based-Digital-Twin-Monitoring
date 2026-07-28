@@ -341,6 +341,10 @@ PostgreSQL+TimescaleDB+Mosquitto+venv+FastAPI iskelet+/health. Mock publisher.
 - Cross-tenant izolasyon UI'da tam kanıtlandı.
 
 ### ⬜ Ankara Deploy Öncesi Kalan İşler
+
+- **1. Uçtan uca canlı akış demosu** (2-3 sa, Ankara demosunun kendisi) — IU bridge → MQTT → worker → DB → SSE → frontend Live Monitoring KPI kartları canlı hareket. Mock → gerçek IU verisi geçişinin fiili kanıtı. Faz 1'de "kayıpsız veri kontratı" olarak inşa edilmiş yapıyı gerçek veriyle bir kez daha koşmak; şu ana kadar IU kesintisi yüzünden hiç yapılmadı. Bu, Ankara demosunda projeksiyona vurulacak şey.
+- **2. Otokar PdM `/pdm/alarms` — heuristik MVP**: signal_catalog.warn_threshold / critical_threshold üzerinden basit filtreleme. Gerçek ML/PdM algoritması Faz 4. Ankara için "PdM konsept çalışıyor" kanıtı yeterli.
+
 Öncelik sırasıyla:
 
 1. **IU bridge duman testi** — 30 dk (Faz 4 Aşama 4, IU akışı geri geldi)
