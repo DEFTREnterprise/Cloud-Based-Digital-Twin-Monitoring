@@ -2,7 +2,7 @@
 
 > **Bu dosya nedir?** Claude'un CB-MDTM projesinde nasıl davranacağını tanımlayan kalıcı talimat setidir.
 > `AI_CONTEXT.md` ile birlikte yeni sohbete eklenir. `AI_CONTEXT.md` = "ne yaptık / nerede kaldık", bu dosya = "nasıl çalışıyoruz".
-> **Son güncelleme:** 21 Temmuz 2026 akşamı — Faz 2.4.1 + 2.4.2 kapanışı + Ankara sunucusu hazır + IU sözlüğü netleşti + yeni tuzaklar.
+> **Son güncelleme:** 28 Temmuz 2026 — Faz 2.4.1 + 2.4.2 kapanışı + Ankara sunucusu hazır + IU sözlüğü netleşti + MVP timeline (29 Tem konsorsiyum, deploy uzaktan sonrasında).
 
 ---
 
@@ -354,7 +354,7 @@ Claude'dan istenebilir: *"AI_CONTEXT'i güncel duruma göre revize et"* → gün
 |---|---|---|
 | **Taha (OTOKAR)** | Genel iletişim + IU akış durumu bildirimi | ✅ 21 Tem: IU akışı geri geldi + feature sözlüğü teyidi |
 | **Ali Kemal Bey (OTOKAR — IU sorumlusu)** | Threshold hesaplama danışmanlığı, uzun kesinti nedeni, yeni sensör bilgisi (gerekirse) | Faz 3 sonrası. Mail: "Taha Bey yönlendirdi, ..." |
-| **DEFTR IT** | Public statik IP + DNS (`matisse.deftr.com` A kaydı) + firewall dışarı yönlendirme (443 → Ankara sunucu) | Ankara deploy (27 Tem). Cevap gelmezse plan B: LAN'da HTTP ile ilk kanıt, TLS 28 Tem sonrasına. |
+| **DEFTR IT** | Public statik IP + DNS (`matisse.deftr.com` A kaydı) + firewall dışarı yönlendirme (443 → Ankara sunucu) | Ankara deploy (29 Tem MVP sonrası, uzaktan). Cevap gelmezse plan B: LAN'da HTTP ile ilk kanıt, TLS sonraki iterasyonda. |
 | **DK** | Frontend rol modeli 7→3 daralma onayı | ✅ İnisiyatif SK'da, sormaya gerek yok. |
 | **ZG** | Ankara sunucu OS/altyapı (Docker, Python, nginx, UFW, git) + SSH hazırlığı | ✅ 21 Tem'den önce yapıldı, `deploy/ankara-server-README.md`. SSH kısmı SK deploy günü tamamlayacak. |
 | **Anthropic (Claude)** | Uzun sohbette context sınırı hissedilirse → yeni sohbet + AI_CONTEXT güncelleme | Süreklilik |
@@ -374,8 +374,11 @@ Yeni sohbet açtığında:
 Örnek (22 Temmuz sabahı):
 > *"CB-MDTM devam — 22 Tem. Dün Faz 2.4.1 + 2.4.2 kapandı, IU akışı geri geldi. Bugün önce IU bridge duman testi + sözlük tashihi, sonra Otokar PdM backend."*
 
-Ya da bir gün Ankara'da:
-> *"CB-MDTM devam — 27 Tem, Ankara deploy günü. Sunucuya SSH ile bağlandım. `deploy/RUNBOOK.md` üzerinden gidiyoruz. İlk migration'ı çalıştıracağız."*
+Ya da MVP günü (29 Tem):
+> *"CB-MDTM devam — 29 Tem, konsorsiyum MVP günü. Sunum akışı: Keycloak login → Live Monitoring canlı IU verisi → cross-tenant izolasyon. AI_CONTEXT §10 MVP demo senaryosu."*
+
+Ya da MVP sonrası uzaktan deploy günü:
+> *"CB-MDTM devam — 30 Tem (veya sonrası), Ankara uzaktan deploy. Sunucuya SSH ile bağlandım. `deploy/RUNBOOK.md` üzerinden gidiyoruz. İlk migration'ı çalıştıracağız."*
 
 **3. Kural:**
 - Claude'a "bana özet ver" deme — dosyalarda zaten var, sadece kalınan noktayı belirt.
