@@ -24,7 +24,7 @@ TOPIC + PAYLOAD SOZLESMESI (mock_publisher ile birebir ayni):
       "asset_code": "MOTOR_01".."MOTOR_12",
       "source": "REAL",
       "ts_utc": "2026-07-13T12:34:56Z",
-      "readings": [{"signal_code": "vibration_x", "value": 0.023, "unit": "m/s2"}, ...]
+      "readings": [{"signal_code": "vibration_x", "value": 0.023, "unit": "mm/s"}, ...]
     }
 
 POLLING RITMI:
@@ -126,18 +126,20 @@ class Config:
         )
 
 
-# -----------------------------------------------------------------------------
-# IU signal code -> CB-MDTM signal_code + unit eslemeleri
-# -----------------------------------------------------------------------------
 # basic-features jsonAvg icindeki "0001".."0006" kodlarinin karsiligi
-# (Taha teyit edecek; 0006 birim varsayimi degC)
+# TAHA BEY YAZILI TEYIDI 28.07.2026 - varsayim yok, teyitli.
+#   0001 = ivmenin KARESI, eksen katkilarinin kareler toplami -> (m/s2)^2 rms
+#   0002-4 = eksen bazli hiz RMS -> mm/s  (1 dk periyot;
+#            computed taraftaki vrms_* ayni buyuklugun 30 dk periyodu)
+#   0005 = sensor sicakligi -> degC
+#   0006 = AKUSTIK ses seviyesi -> dB  (eski "bearing sicakligi" varsayimi YANLISTI)
 BASIC_SIGNAL_MAP: dict[str, tuple[str, str]] = {
-    "0001": ("accel_total",        "g"),
-    "0002": ("vibration_x",        "m/s2"),
-    "0003": ("vibration_y",        "m/s2"),
-    "0004": ("vibration_z",        "m/s2"),
+    "0001": ("accel_total",        "(m/s2)^2"),
+    "0002": ("vibration_x",        "mm/s"),
+    "0003": ("vibration_y",        "mm/s"),
+    "0004": ("vibration_z",        "mm/s"),
     "0005": ("temperature_sensor", "degC"),
-    "0006": ("temperature_bearing","degC"),
+    "0006": ("acoustic_db",        "dB"),
 }
 
 # computed-features alan adlari -> CB-MDTM signal_code + unit
