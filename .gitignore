@@ -107,3 +107,4 @@ secrets.json
 *.key
 *.p12
 *.pfx
+*_old.md

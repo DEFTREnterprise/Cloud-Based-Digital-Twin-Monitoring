@@ -23,7 +23,7 @@ TOPIC + PAYLOAD SOZLESMESI (mock_publisher ile birebir ayni):
       "dt_id": "OTOKAR_CORE",
       "asset_code": "MOTOR_01".."MOTOR_12",
       "source": "REAL",
-      "ts_utc": "2026-07-13T12:34:56Z",
+      "ts_utc": "2026-07-29T12:34:56Z",
       "readings": [{"signal_code": "vibration_x", "value": 0.023, "unit": "mm/s"}, ...]
     }
 
@@ -32,13 +32,19 @@ POLLING RITMI:
   computed-features -> her 1800 sn = 30 dk (env: OTOKAR_IU_COMPUTED_POLL_SEC)
   Ana dongu 60 sn'de bir tik atar; computed icin sayaci takip eder.
 
+ORNEKLEME (29.07.2026 duzeltmesi):
+  Her turda monitorun cektigi TUM YENI satirlar yayinlanir (eskiden sadece
+  rows[-1] aliniyordu). Son islenen zaman damgasi monitor bazinda tutulur.
+
 TOKEN YONETIMI:
   IU access token 12 saatlik; exp - 60 sn kalinca proaktif olarak yeniden login.
 
 HATA TOLERANSI:
-  IU 5xx / network hatasi -> exponential backoff (1, 2, 4, 8, ..., max 60 sn)
-  Bos monitor (device=None) veya null RPM -> log ve atla, publish etme
-  MQTT baglanti koparsa -> paho auto-reconnect
+  IU 5xx / network hatasi -> o monitor atlanir, tur devam eder
+  IU 401 (kimlik hatasi)  -> TUM TUR IPTAL + exponential backoff
+                             (login dongusu koruması, asagida aciklamasi var)
+  Bos monitor / null deger -> log ve atla, publish etme
+  MQTT baglanti koparsa    -> paho auto-reconnect
 
 CALISTIRMA:
   python tools/otokar_iu_bridge.py
@@ -55,7 +61,7 @@ import os
 import signal
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -70,6 +76,11 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 # -----------------------------------------------------------------------------
 # Loglama
 # -----------------------------------------------------------------------------
+# NOT: datefmt sonunda 'Z' var; bu yuzden zaman damgasi GERCEKTEN UTC olmali.
+# converter = time.gmtime olmadan yerel saat basilip sonuna 'Z' ekleniyordu
+# (15:49 yerel -> "15:49Z" ama gercek UTC 12:49). Veri her zaman dogruydu,
+# yaniltan sadece log etiketiydi.
+logging.Formatter.converter = time.gmtime
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%dT%H:%M:%SZ",
@@ -84,6 +95,26 @@ log = logging.getLogger("iu_bridge")
 # -----------------------------------------------------------------------------
 IDAP_BASE = "https://api.infinite-uptime.com/api/3.0/idap-api"
 PLANTOS_BASE = "https://plantos-dt-api.infinite-uptime.com"
+
+
+# -----------------------------------------------------------------------------
+# Ozel istisna: kimlik dogrulama hatasi
+# -----------------------------------------------------------------------------
+class IUAuthError(Exception):
+    """
+    IU login basarisiz (401 / gecersiz kimlik).
+
+    NEDEN AYRI BIR ISTISNA?
+      Bu hata requests.RequestException'dan TUREMEZ. Boylece monitor
+      dongusundeki `except requests.RequestException` bunu YAKALAMAZ ve
+      hata tum turu iptal edecek sekilde ana donguye kadar cikar.
+
+      Eski davranis: login 401 aliyordu, monitor dongusu bunu ag hatasi
+      sanip sonraki monitore geciyordu, o da yeniden login deniyordu ->
+      dakikada 12 basarisiz login. systemd altinda 7/24 calisirken saatte
+      720 deneme = IU hesabinin kilitlenme riski. (28.07.2026'da yasandi:
+      .env'deki sifre eskiydi, bridge 7 gun boyunca bu donguyu kosturdu.)
+    """
 
 
 # -----------------------------------------------------------------------------
@@ -126,6 +157,9 @@ class Config:
         )
 
 
+# -----------------------------------------------------------------------------
+# IU signal code -> CB-MDTM signal_code + unit eslemeleri
+# -----------------------------------------------------------------------------
 # basic-features jsonAvg icindeki "0001".."0006" kodlarinin karsiligi
 # TAHA BEY YAZILI TEYIDI 28.07.2026 - varsayim yok, teyitli.
 #   0001 = ivmenin KARESI, eksen katkilarinin kareler toplami -> (m/s2)^2 rms
@@ -168,7 +202,7 @@ COMPUTED_SIGNAL_MAP: dict[str, tuple[str, str]] = {
 # MOTOR_XX asset_code <-> IU monitor_id eslemesi
 # (migration 0005 ile DB'de de var; burada da tutuyoruz cunku bridge DB'ye
 #  bakmasin, tek dosyada okunabilir olsun. DB'deki tabloyla EL ILE senkron
-#  tutmak gerekir — degisirse migration + burasi birlikte guncellenir.)
+#  tutmak gerekir - degisirse migration + burasi birlikte guncellenir.)
 ASSET_MONITOR_MAP: list[tuple[str, int]] = [
     ("MOTOR_01", 198275),
     ("MOTOR_02", 198276),
@@ -176,7 +210,7 @@ ASSET_MONITOR_MAP: list[tuple[str, int]] = [
     ("MOTOR_04", 198279),
     ("MOTOR_05", 198280),
     ("MOTOR_06", 198281),
-    ("MOTOR_07", 198282),
+    ("MOTOR_07", 198282),   # NOT: 29.07.2026 itibariyla veri uretmiyor (Ali Kemal Bey'e soruldu)
     ("MOTOR_08", 198283),
     ("MOTOR_09", 198284),
     ("MOTOR_10", 198285),
@@ -214,20 +248,34 @@ class IUClient:
 
     def _login(self) -> IUToken:
         log.info("IU'ya login yapiliyor: %s", self._username)
-        r = self._session.post(
-            f"{IDAP_BASE}/login",
-            json={"username": self._username, "password": self._password},
-            headers={"Accept": "application/json"},
-            timeout=30,
-        )
-        r.raise_for_status()
+        try:
+            r = self._session.post(
+                f"{IDAP_BASE}/login",
+                json={"username": self._username, "password": self._password},
+                headers={"Accept": "application/json"},
+                timeout=30,
+            )
+            r.raise_for_status()
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status in (401, 403):
+                # Kimlik hatasi: tekrar denemek bosuna, hesap kilitlenebilir.
+                # IUAuthError RequestException'dan turemez -> monitor dongusu
+                # yakalamaz -> tum tur iptal olur (bkz. IUAuthError docstring).
+                raise IUAuthError(
+                    f"IU login reddedildi (HTTP {status}). "
+                    f".env'deki OTOKAR_IU_PASSWORD guncel mi? "
+                    f"Sifre rotate edildiyse .env de guncellenmelidir."
+                ) from e
+            raise  # 5xx / diger HTTP hatalari normal backoff'a gitsin
+
         data = r.json()
         # response: { "status": true, "data": { "accessToken": "...", "refreshToken": "..." } }
         access = data.get("accessToken") or data.get("access_token")
         if not access:
             access = (data.get("data") or {}).get("accessToken")
         if not access:
-            raise RuntimeError(f"accessToken bulunamadi: {json.dumps(data)[:300]}")
+            raise IUAuthError(f"accessToken bulunamadi: {json.dumps(data)[:300]}")
 
         # JWT'nin exp claim'ini decode et (imza dogrulamiyoruz, sadece exp okuma)
         exp = self._decode_jwt_exp(access)
@@ -238,7 +286,7 @@ class IUClient:
     def _decode_jwt_exp(jwt: str) -> int:
         parts = jwt.split(".")
         if len(parts) != 3:
-            raise RuntimeError("gecersiz JWT")
+            raise IUAuthError("gecersiz JWT")
         payload_b64 = parts[1]
         # base64url padding
         padded = payload_b64 + "=" * (-len(payload_b64) % 4)
@@ -246,7 +294,7 @@ class IUClient:
         payload = json.loads(decoded)
         exp = payload.get("exp")
         if not isinstance(exp, int):
-            raise RuntimeError("exp claim yok/gecersiz")
+            raise IUAuthError("exp claim yok/gecersiz")
         return exp
 
     def _ensure_token(self) -> str:
@@ -353,7 +401,7 @@ def computed_row_to_readings(row: dict) -> list[dict]:
 
 def parse_iu_timestamp(row: dict, key: str) -> datetime | None:
     """
-    basic: row['time'] = '2026-07-13T12:02:00Z' (ISO)
+    basic: row['time'] = '2026-07-29T12:02:00Z' (ISO)
     computed: row['timestamp'] = '1783937867000' (str, epoch ms)
     """
     val = row.get(key)
@@ -425,8 +473,8 @@ class Bridge:
         self.iu = IUClient(cfg.iu_username, cfg.iu_password)
         self.mqtt_client = make_mqtt(cfg)
         self._stopped = False
-        # Her (monitor_id, feature_type) icin son islenen zaman damgasi
-        # (basic'te iki tur arasi ayni satiri iki kez publish etmeyelim)
+        # Her (feature_type, monitor_id) icin son islenen zaman damgasi.
+        # Ayni satir iki kez publish edilmesin diye tutulur.
         self._last_ts: dict[str, datetime] = {}
 
     def stop(self, *_args) -> None:
@@ -438,11 +486,73 @@ class Bridge:
     def _backoff(attempt: int) -> float:
         return min(60.0, 1.0 * (2 ** attempt))
 
+    # ---- Ortak yayin yardimcisi ----
+    def _publish_new_rows(
+        self,
+        asset_code: str,
+        monitor_id: int,
+        rows: list[dict],
+        ts_key: str,
+        to_readings,
+        kind: str,
+    ) -> tuple[int, int]:
+        """
+        Bir monitorun cektigi TUM yeni satirlari yayinlar.
+
+        NEDEN rows[-1] DEGIL?
+          Eski davranis her turda yalnizca son satiri aliyordu. IU o dakika
+          yeni kova kapatmadiysa satir atlanip bir daha geri donulmuyordu;
+          KPI'da ~%12-16 gap olarak gorunuyordu. Artik son islenen zaman
+          damgasindan SONRAKI her satir yayinlanir -> kayipsizlik.
+
+        Cift yayin riski yok: worker INSERT ... ON CONFLICT DO NOTHING
+        kullaniyor, PK (ts_utc, asset_id, signal_id, source) idempotent.
+
+        Donus: (yayimlanan, atlanan)
+        """
+        published = 0
+        skipped = 0
+        key = f"{kind}:{monitor_id}"
+        last_seen = self._last_ts.get(key)
+
+        # Zaman damgasi cozulebilen satirlari sirala (IU sirali dondurmeyebilir)
+        dated: list[tuple[datetime, dict]] = []
+        for row in rows:
+            ts = parse_iu_timestamp(row, ts_key)
+            if ts is None:
+                skipped += 1
+                continue
+            dated.append((ts, row))
+        dated.sort(key=lambda p: p[0])
+
+        newest = last_seen
+        for ts, row in dated:
+            if last_seen is not None and ts <= last_seen:
+                continue  # zaten islenmis
+            readings = to_readings(row)
+            if not readings:
+                skipped += 1
+                continue
+            payload = build_payload(asset_code, ts, readings)
+            topic = f"{self.cfg.topic_prefix}/{asset_code.split('_')[1]}/telemetry"
+            self.mqtt_client.publish(topic, json.dumps(payload), qos=self.cfg.qos)
+            published += 1
+            if newest is None or ts > newest:
+                newest = ts
+
+        if newest is not None:
+            self._last_ts[key] = newest
+
+        return published, skipped
+
     # ---- Basic tur ----
     def _run_basic(self) -> tuple[int, int]:
         """
-        12 monitor icin basic-features cek, MQTT'ye publish et.
-        Donus: (basarili_publish, atlanan)
+        12 monitor icin basic-features cek, yeni satirlari MQTT'ye publish et.
+        Donus: (yayimlanan, atlanan)
+
+        NOT: IUAuthError burada YAKALANMAZ; ana donguye cikar ve tum tur
+        iptal olur. Bkz. IUAuthError docstring (login dongusu korumasi).
         """
         published = 0
         skipped = 0
@@ -458,29 +568,11 @@ class Bridge:
                 skipped += 1
                 continue
 
-            # Sadece son satiri publish et (mevcut ritmi surdurur: dakikada 1 mesaj/asset)
-            row = rows[-1]
-            ts = parse_iu_timestamp(row, "time")
-            if ts is None:
-                skipped += 1
-                continue
-
-            # Ayni satiri iki kez publish etme
-            key = f"basic:{monitor_id}"
-            if self._last_ts.get(key) == ts:
-                skipped += 1
-                continue
-
-            readings = basic_row_to_readings(row)
-            if not readings:
-                skipped += 1
-                continue
-
-            payload = build_payload(asset_code, ts, readings)
-            topic = f"{self.cfg.topic_prefix}/{asset_code.split('_')[1]}/telemetry"
-            self.mqtt_client.publish(topic, json.dumps(payload), qos=self.cfg.qos)
-            self._last_ts[key] = ts
-            published += 1
+            p, s = self._publish_new_rows(
+                asset_code, monitor_id, rows, "time", basic_row_to_readings, "basic"
+            )
+            published += p
+            skipped += s
 
         return published, skipped
 
@@ -500,27 +592,11 @@ class Bridge:
                 skipped += 1
                 continue
 
-            row = rows[-1]
-            ts = parse_iu_timestamp(row, "timestamp")
-            if ts is None:
-                skipped += 1
-                continue
-
-            key = f"computed:{monitor_id}"
-            if self._last_ts.get(key) == ts:
-                skipped += 1
-                continue
-
-            readings = computed_row_to_readings(row)
-            if not readings:
-                skipped += 1
-                continue
-
-            payload = build_payload(asset_code, ts, readings)
-            topic = f"{self.cfg.topic_prefix}/{asset_code.split('_')[1]}/telemetry"
-            self.mqtt_client.publish(topic, json.dumps(payload), qos=self.cfg.qos)
-            self._last_ts[key] = ts
-            published += 1
+            p, s = self._publish_new_rows(
+                asset_code, monitor_id, rows, "timestamp", computed_row_to_readings, "computed"
+            )
+            published += p
+            skipped += s
 
         return published, skipped
 
@@ -548,6 +624,7 @@ class Bridge:
         last_computed = 0.0  # monotonic()
         tick_count = 0
         backoff_attempt = 0
+        auth_attempt = 0
         total_published = 0
         total_skipped = 0
         report_at = time.monotonic() + 30.0  # her 30 sn ozet
@@ -569,10 +646,26 @@ class Bridge:
                     last_computed = tick_start
                     log.info("computed tur: yayimlanan=%d atlanan=%d", p_comp, s_comp)
 
-                # Basari => backoff sifirla
+                # Basari => sayaclari sifirla
                 backoff_attempt = 0
+                auth_attempt = 0
 
-            except Exception as e:  # noqa: BLE001 — genel dayaniklilik
+            except IUAuthError as e:
+                # Kimlik hatasi: tur derhal iptal, UZUN backoff.
+                # Amac IU hesabini kilitlememek. Normal backoff (max 60 sn)
+                # yerine 5 dk'dan baslayip 1 saate kadar cikiyoruz.
+                auth_attempt += 1
+                wait = min(3600.0, 300.0 * auth_attempt)
+                log.error(
+                    "IU KIMLIK HATASI (deneme %d): %s "
+                    "Tur iptal edildi, %.0f dk bekleniyor.",
+                    auth_attempt, e, wait / 60.0,
+                )
+                if self._sleep_until_stopped(wait):
+                    break
+                continue
+
+            except Exception as e:  # noqa: BLE001 - genel dayaniklilik
                 backoff_attempt += 1
                 wait = self._backoff(backoff_attempt)
                 log.error(
