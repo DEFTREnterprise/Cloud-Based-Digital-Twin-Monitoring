@@ -104,23 +104,44 @@ async def kpi_live(
     violations = int(cr.violations) if cr else 0
     quality_ok_pct = round(ok_count / total * 100, 1) if total else None
 
-    # gap rate: beklenen (combo x window_seconds x ~1Hz) vs gercek
+    # gap rate: her (asset, signal) kombosu icin BEKLENEN kayit sayisi,
+    # sinyalin kendi expected_rate_hz'ine gore hesaplanir.
+    #
+    # NEDEN 1 Hz DEGIL?
+    #   Eski hesap her sinyali saniyede 1 kayit varsayiyordu. IU sinyalleri
+    #   icin bu tamamen yanlis: basic 60 sn'de bir (0.0167 Hz), computed
+    #   30 dk'da bir (0.000556 Hz). Sabit varsayimla gap_rate ~%99.8
+    #   cikiyordu; bu bir veri kaybi degil, olcum hatasiydi.
+    #   Artik beklenen = pencere_saniye * expected_rate_hz (sinyal basina).
     gap_sql = text(f"""
         WITH combos AS (
-            SELECT DISTINCT asset_id, signal_id
-            FROM telemetry_measurements
-            WHERE ts_utc >= :since {asset_filter} {tenant_filter}
+            SELECT DISTINCT tm.asset_id, tm.signal_id, sc.expected_rate_hz
+            FROM telemetry_measurements tm
+            JOIN signal_catalog sc USING (signal_id)
+            WHERE tm.ts_utc >= :since
+              {asset_filter_aliased}
+              {tenant_filter_aliased}
+              AND sc.expected_rate_hz IS NOT NULL
+              AND sc.expected_rate_hz > 0
         )
         SELECT
-            (SELECT count(*) FROM combos) * :window_seconds AS expected,
-            (SELECT count(*) FROM telemetry_measurements
-             WHERE ts_utc >= :since {asset_filter} {tenant_filter})         AS actual_cnt
+            (SELECT COALESCE(sum(expected_rate_hz * :window_seconds), 0) FROM combos) AS expected,
+            (SELECT count(*)
+             FROM telemetry_measurements tm
+             JOIN signal_catalog sc USING (signal_id)
+             WHERE tm.ts_utc >= :since
+               {asset_filter_aliased}
+               {tenant_filter_aliased}
+               AND sc.expected_rate_hz IS NOT NULL
+               AND sc.expected_rate_hz > 0
+            ) AS actual_cnt
     """)
     gr = (await db.execute(gap_sql, {**params, "window_seconds": wh * 3600})).fetchone()
     gap_rate_pct = None
-    if gr and gr.expected and gr.expected > 0:
-        missing = max(0, gr.expected - gr.actual_cnt)
-        gap_rate_pct = round(missing / gr.expected * 100, 2)
+    if gr and gr.expected and float(gr.expected) > 0:
+        expected = float(gr.expected)
+        missing = max(0.0, expected - float(gr.actual_cnt))
+        gap_rate_pct = round(missing / expected * 100, 2)
 
     return KPILive(
         computed_at=datetime.now(tz=timezone.utc),
