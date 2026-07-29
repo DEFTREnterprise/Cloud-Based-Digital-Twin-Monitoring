@@ -115,7 +115,11 @@ class IngestWorker:
                 # MVP'de atlayip logluyoruz (signal_id zorunlu, FK var).
                 print(f"[WORKER] bilinmeyen signal={r.signal_code}, okuma atlandi", flush=True)
                 continue
-            flag = classify(r.value, lag, sig["range_min"], sig["range_max"])
+            flag = classify(
+                r.value, lag,
+                sig["range_min"], sig["range_max"],
+                sig.get("expected_rate_hz"),
+            )
             rows.append({
                 "ts_utc": msg.ts_utc,
                 "tenant_id": tenant_id,

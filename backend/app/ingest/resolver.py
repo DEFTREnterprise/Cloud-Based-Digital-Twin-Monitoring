@@ -51,9 +51,10 @@ class Resolver:
         ))
         self._asset = {(dt_id, code): aid for aid, dt_id, code in rows.all()}
 
-        # signal_catalog: signal_code -> {signal_id, unit, range_min, range_max}
+        # signal_catalog: signal_code -> {signal_id, unit, range_min, range_max, expected_rate_hz}
         rows = await db.execute(text(
-            "SELECT signal_id, signal_code, unit, range_min, range_max FROM signal_catalog"
+            "SELECT signal_id, signal_code, unit, range_min, range_max, expected_rate_hz "
+            "FROM signal_catalog"
         ))
         self._signal = {
             code: {
@@ -61,8 +62,9 @@ class Resolver:
                 "unit": unit,
                 "range_min": float(rmin) if rmin is not None else None,
                 "range_max": float(rmax) if rmax is not None else None,
+                "expected_rate_hz": float(rate) if rate is not None else None,
             }
-            for sid, code, unit, rmin, rmax in rows.all()
+            for sid, code, unit, rmin, rmax, rate in rows.all()
         }
 
         self._loaded = True
