@@ -1,0 +1,46 @@
+# CB-MDTM — OTOKAR Infinite Uptime bridge
+# Kurulum:
+#   sudo cp /opt/matisse/deploy/systemd/matisse-bridge.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now matisse-bridge
+#
+# ⚠️ TEK INSTANCE KURALI: bridge ayni anda hem dev makinede hem sunucuda
+# calisirsa iki kaynak ayni veriyi yazar. Idempotent PK sayesinde bozulma
+# olmaz ama gereksiz yuk + IU API'sine cift istek demektir.
+# Sunucu ayaga kalktiktan sonra dev bridge'i DURDUR.
+
+[Unit]
+Description=CB-MDTM OTOKAR IU bridge (matisse-bridge)
+After=network-online.target docker.service matisse-worker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=exec
+User=matisse
+Group=matisse
+WorkingDirectory=/opt/matisse/backend
+EnvironmentFile=/opt/matisse/backend/.env
+
+ExecStart=/opt/matisse/backend/.venv/bin/python tools/otokar_iu_bridge.py
+
+# Bridge 7/24 calisir. IU kimlik hatasinda (401) kod kendi icinde
+# 5dk..1sa backoff uygular ve turu iptal eder — hesap kilitlenmesin diye.
+# systemd restart'i bu korumayi ATLAMAMALI: RestartSec dusuk tutulursa
+# surec olup olup yeniden baslar ve backoff sayaci sifirlanir.
+Restart=always
+RestartSec=30
+StartLimitBurst=3
+StartLimitIntervalSec=600
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/matisse
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=matisse-bridge
+
+[Install]
+WantedBy=multi-user.target

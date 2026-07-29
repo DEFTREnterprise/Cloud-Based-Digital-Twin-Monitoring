@@ -1,0 +1,106 @@
+# CB-MDTM — Ankara prod Docker Compose
+# ====================================
+# ADR-003 (karma paketleme): Docker = PG + Keycloak + Mosquitto
+#                            systemd = FastAPI + worker + bridge + nginx + signaling
+#
+# NOT (ADR-003'ten sapma): Mosquitto orijinal ADR'de systemd tarafindaydi ama
+# ZG'nin sunucu kurulumunda apt ile mosquitto kurulmadi. Docker'a almak hem
+# kurulum adimini azaltiyor hem surum sabitliyor. Broker YALNIZCA localhost'a
+# baglanir (127.0.0.1:1883) — disaridan erisilemez.
+#
+# Calistirma:
+#   cd /opt/matisse/deploy
+#   docker compose up -d
+#   docker compose ps
+#
+# Durum:
+#   docker compose logs -f keycloak
+#   docker compose down          # veriler volume'da kalir
+#   docker compose down -v       # DIKKAT: volume'lari da siler
+
+services:
+  postgres:
+    # TODO(deploy): ilk kurulumdan sonra `docker compose exec postgres postgres --version`
+    #               ile gelen surumu buraya PIN'le (orn. timescale/timescaledb:2.27.1-pg17).
+    #               'latest' prod'da yeniden kurulumda farkli surum getirebilir.
+    image: timescale/timescaledb:latest-pg17
+    container_name: matisse-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env'de tanimli olmali}
+      POSTGRES_DB: cbmdtm
+      # locale=C — Turkce i/I tuzagi (AI_WORKING_PROTOCOL §5)
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      # SADECE localhost — FastAPI/worker/alembic ayni makinede
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init-keycloak-db.sql:/docker-entrypoint-initdb.d/10-keycloak-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cbmdtm"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # Linux'ta Windows'un CreateFileMapping sinirlamasi yok; 32GB RAM'li
+    # sunucuda shared_buffers artirilabilir. Once varsayilanla basla,
+    # yuk testi #1'den sonra tune et.
+    shm_size: 1gb
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    container_name: matisse-keycloak
+    restart: unless-stopped
+    command:
+      - start
+      - --optimized
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env'de tanimli olmali}
+
+      # Ilk acilistaki gecici admin. STEP 27'de kalici admin olusturulup
+      # bu kullanici SILINECEK.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?KC_ADMIN_PASSWORD .env'de tanimli olmali}
+
+      # nginx path routing: https://matisse.deftr.com/auth/...
+      # Bu ayar olmadan Keycloak kendini kokte sanar, redirect'ler kirilir.
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_HOSTNAME: ${KC_HOSTNAME:?KC_HOSTNAME .env'de tanimli olmali}
+      KC_HOSTNAME_STRICT: "false"
+
+      # TLS'i nginx sonlandiriyor; Keycloak proxy arkasinda HTTP konusur.
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Realm import icin: docker compose exec ile icerideki dosyaya erisilir
+      - ./keycloak:/opt/keycloak/data/import:ro
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: matisse-mosquitto
+    restart: unless-stopped
+    ports:
+      # SADECE localhost — bridge ve worker ayni makinede
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+volumes:
+  pgdata:
+  mosquitto_data:
+  mosquitto_log:

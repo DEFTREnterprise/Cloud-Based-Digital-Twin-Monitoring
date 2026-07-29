@@ -1,0 +1,53 @@
+# CB-MDTM — FastAPI (uvicorn)
+# Kurulum:
+#   sudo cp /opt/matisse/deploy/systemd/matisse-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now matisse-api
+#   sudo journalctl -u matisse-api -f
+
+[Unit]
+Description=CB-MDTM FastAPI (matisse-api)
+Documentation=https://github.com/DEFTREnterprise/Cloud-Based-Digital-Twin-Monitoring
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=exec
+User=matisse
+Group=matisse
+WorkingDirectory=/opt/matisse/backend
+
+# .env dosyasi DB sifresi, Keycloak issuer, IU kimlik bilgilerini tasir.
+# Faz 3 STEP 31: systemd credentials'a tasinacak (dosya izni yerine
+# LoadCredential ile). Simdilik chmod 600 + User=matisse yeterli.
+EnvironmentFile=/opt/matisse/backend/.env
+
+# --reload YOK (prod). Worker sayisi tek node icin 2 yeterli;
+# yuk testi #1 sonrasi ayarlanacak.
+ExecStart=/opt/matisse/backend/.venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2 \
+    --proxy-headers \
+    --forwarded-allow-ips='127.0.0.1'
+
+Restart=always
+RestartSec=5
+# PG/Keycloak acilisi yavassa surekli restart donmesin
+StartLimitBurst=5
+StartLimitIntervalSec=120
+
+# Sertlestirme
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/matisse
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=matisse-api
+
+[Install]
+WantedBy=multi-user.target
