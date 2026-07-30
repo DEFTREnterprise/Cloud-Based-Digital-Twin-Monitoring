@@ -1,31 +1,31 @@
-# CB-MDTM — Ankara Deploy RUNBOOK
+﻿# CB-MDTM â€” Ankara Deploy RUNBOOK
 
-> **Amaç:** Ankara sunucusuna sıfırdan kurulum + günlük işletim + arıza müdahalesi.
-> **Hedef okuyucu:** SK (kurulum), DK/ZG (SK yokken müdahale — özellikle 7-15 Ağustos izin dönemi).
-> **Sunucu:** Dell Pro Max T2, Ubuntu 22.04, kullanıcı `matisse`, kurulum dizini `/opt/matisse`
+> **AmaÃ§:** Ankara sunucusuna sÄ±fÄ±rdan kurulum + gÃ¼nlÃ¼k iÅŸletim + arÄ±za mÃ¼dahalesi.
+> **Hedef okuyucu:** SK (kurulum), DK/ZG (SK yokken mÃ¼dahale â€” Ã¶zellikle 7-15 AÄŸustos izin dÃ¶nemi).
+> **Sunucu:** Dell Pro Max T2, Ubuntu 22.04, kullanÄ±cÄ± `matisse`, kurulum dizini `/opt/matisse`
 
 ---
 
-## 0. ÖN KOŞULLAR
+## 0. Ã–N KOÅULLAR
 
-| Şart | Durum | Not |
+| Åart | Durum | Not |
 |---|---|---|
-| Ubuntu 22.04 | ✅ ZG kurdu | `git 2.34.1` ile teyit |
-| Docker + Compose plugin | ✅ | `docker compose version` |
-| Python 3.11 + venv (deadsnakes) | ✅ | `python3.11 --version` |
-| nginx | ✅ | |
-| git | ✅ | |
-| UFW: 22, 80, 443, 8883 | ✅ | |
-| Disk 100GB+ | ✅ | |
-| **SSH erişimi** | ⬜ **İlk adım** | openssh-server + authorized_keys |
-| **Sabit LAN IP** | ⬜ | DHCP rezervasyonu veya netplan statik |
-| DEFTR IT: DNS + 443 yönlendirme | ⬜ | TLS için; gelmezse HTTP ile devam |
+| Ubuntu 22.04 | âœ… ZG kurdu | `git 2.34.1` ile teyit |
+| Docker + Compose plugin | âœ… | `docker compose version` |
+| Python 3.11 + venv (deadsnakes) | âœ… | `python3.11 --version` |
+| nginx | âœ… | |
+| git | âœ… | |
+| UFW: 22, 80, 443, 8883 | âœ… | |
+| Disk 100GB+ | âœ… | |
+| **SSH eriÅŸimi** | â¬œ **Ä°lk adÄ±m** | openssh-server + authorized_keys |
+| **Sabit LAN IP** | â¬œ | DHCP rezervasyonu veya netplan statik |
+| DEFTR IT: DNS + 443 yÃ¶nlendirme | â¬œ | TLS iÃ§in; gelmezse HTTP ile devam |
 
 ---
 
-## 1. SSH ERİŞİMİ (20 dk)
+## 1. SSH ERÄ°ÅÄ°MÄ° (20 dk)
 
-Sunucuda **fiziksel olarak** ya da ZG üzerinden:
+Sunucuda **fiziksel olarak** ya da ZG Ã¼zerinden:
 
 ```bash
 sudo apt update
@@ -33,24 +33,24 @@ sudo apt install -y openssh-server
 sudo systemctl enable --now ssh
 
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
-nano ~/.ssh/authorized_keys        # SK, DK, ZG public key'lerini yapıştır
+nano ~/.ssh/authorized_keys        # SK, DK, ZG public key'lerini yapÄ±ÅŸtÄ±r
 chmod 600 ~/.ssh/authorized_keys
 ```
 
-Dev makinede public key üretimi (yoksa):
+Dev makinede public key Ã¼retimi (yoksa):
 
 ```powershell
 ssh-keygen -t ed25519 -C "sk@deftr"
 Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
 ```
 
-Bağlantı testi:
+BaÄŸlantÄ± testi:
 
 ```powershell
-ssh matisse@<LAN_IP>
+ssh deftr_matisse@192.168.1.73
 ```
 
-**Sertleştirme (bağlantı doğrulandıktan SONRA):**
+**SertleÅŸtirme (baÄŸlantÄ± doÄŸrulandÄ±ktan SONRA):**
 
 ```bash
 sudo nano /etc/ssh/sshd_config
@@ -59,26 +59,26 @@ sudo nano /etc/ssh/sshd_config
 sudo systemctl restart ssh
 ```
 
-> ⚠️ Key ile giriş çalıştığını **doğrulamadan** `PasswordAuthentication no` yapma — kendini kilitlersin.
+> âš ï¸ Key ile giriÅŸ Ã§alÄ±ÅŸtÄ±ÄŸÄ±nÄ± **doÄŸrulamadan** `PasswordAuthentication no` yapma â€” kendini kilitlersin.
 
 ---
 
-## 2. SABİT IP
+## 2. SABÄ°T IP
 
-DHCP'de IP değişirse DEFTR IT'nin firewall yönlendirmesi ve SSH kırılır.
+DHCP'de IP deÄŸiÅŸirse DEFTR IT'nin firewall yÃ¶nlendirmesi ve SSH kÄ±rÄ±lÄ±r.
 
-**Seçenek A (tercih):** Router'da MAC adresine DHCP rezervasyonu.
+**SeÃ§enek A (tercih):** Router'da MAC adresine DHCP rezervasyonu.
 
 ```bash
 ip -brief link show          # MAC adresi
 ip -brief addr show          # mevcut IP
 ```
 
-**Seçenek B:** netplan ile statik IP.
+**SeÃ§enek B:** netplan ile statik IP.
 
 ```bash
 sudo nano /etc/netplan/01-netcfg.yaml
-sudo netplan try              # 120 sn içinde onaylanmazsa geri alır — güvenli
+sudo netplan try              # 120 sn iÃ§inde onaylanmazsa geri alÄ±r â€” gÃ¼venli
 sudo netplan apply
 ```
 
@@ -88,7 +88,7 @@ sudo netplan apply
 
 ```bash
 sudo mkdir -p /opt/matisse
-sudo chown -R matisse:matisse /opt/matisse
+sudo chown -R deftr_matisse:deftr_matisse /opt/matisse
 
 cd /opt
 git clone https://github.com/DEFTREnterprise/Cloud-Based-Digital-Twin-Monitoring.git matisse
@@ -100,7 +100,7 @@ pip install --upgrade pip
 pip install -r backend/requirements.txt     # yoksa: pip install -r backend/requirements.in
 ```
 
-### `.env` oluştur
+### `.env` oluÅŸtur
 
 ```bash
 cp backend/.env.example backend/.env
@@ -110,22 +110,22 @@ chmod 600 backend/.env
 
 **Doldurulacaklar** (`deploy/.env.prod.example` referans):
 
-| Değişken | Prod değeri |
+| DeÄŸiÅŸken | Prod deÄŸeri |
 |---|---|
 | `DATABASE_URL` | `postgresql://postgres:<YENI_SIFRE>@localhost:5432/cbmdtm` |
-| `POSTGRES_PASSWORD` | Yeni güçlü şifre (Compose de bunu okur) |
-| `KC_ADMIN_USER` / `KC_ADMIN_PASSWORD` | Geçici bootstrap admin |
-| `KC_HOSTNAME` | `matisse.deftr.com` (DNS yoksa `<LAN_IP>`) |
-| `KEYCLOAK_ISSUER` | `http://<LAN_IP>/auth/realms/cbmdtm` → TLS sonrası `https://matisse.deftr.com/auth/realms/cbmdtm` |
+| `POSTGRES_PASSWORD` | Yeni gÃ¼Ã§lÃ¼ ÅŸifre (Compose de bunu okur) |
+| `KC_ADMIN_USER` / `KC_ADMIN_PASSWORD` | GeÃ§ici bootstrap admin |
+| `KC_HOSTNAME` | `matisse.deftr.com` (DNS yoksa `192.168.1.73`) |
+| `KEYCLOAK_ISSUER` | `http://192.168.1.73/auth/realms/cbmdtm` â†’ TLS sonrasÄ± `https://matisse.deftr.com/auth/realms/cbmdtm` |
 | `OTOKAR_IU_USERNAME` / `OTOKAR_IU_PASSWORD` | IU kimlik bilgileri |
 | `OTOKAR_IU_LOOKBACK_MIN` | `60` |
 | `MQTT_BROKER` | `localhost` |
 
-> **🔑 KURAL (28 Tem dersi):** Her şifre değişikliği **iki adımlıdır** — kaynağı değiştir + tüketici config'ini güncelle + **tek istekle doğrula**. IU şifresi 21 Tem'de rotate edildi, `.env` güncellenmedi, bridge 7 gün boyunca sessizce 401 aldı.
+> **ğŸ”‘ KURAL (28 Tem dersi):** Her ÅŸifre deÄŸiÅŸikliÄŸi **iki adÄ±mlÄ±dÄ±r** â€” kaynaÄŸÄ± deÄŸiÅŸtir + tÃ¼ketici config'ini gÃ¼ncelle + **tek istekle doÄŸrula**. IU ÅŸifresi 21 Tem'de rotate edildi, `.env` gÃ¼ncellenmedi, bridge 7 gÃ¼n boyunca sessizce 401 aldÄ±.
 
 ---
 
-## 4. DOCKER SERVİSLERİ (30 dk)
+## 4. DOCKER SERVÄ°SLERÄ° (30 dk)
 
 ```bash
 cd /opt/matisse/deploy
@@ -140,7 +140,7 @@ docker compose ps
 **Beklenen:** `matisse-postgres` (healthy), `matisse-keycloak` (running), `matisse-mosquitto` (running).
 
 ```bash
-docker compose logs -f keycloak      # "Listening on ..." görünmeli, Ctrl+C
+docker compose logs -f keycloak      # "Listening on ..." gÃ¶rÃ¼nmeli, Ctrl+C
 docker compose exec postgres psql -U postgres -c "\l"   # cbmdtm + keycloak DB'leri
 ```
 
@@ -156,7 +156,7 @@ alembic upgrade head
 alembic current
 ```
 
-**Beklenen:** `0006_iu_unit_fix (head)` — **0006 dahil olmalı**, IU sözlük tashihi bu revizyonda.
+**Beklenen:** `0006_iu_unit_fix (head)` â€” **0006 dahil olmalÄ±**, IU sÃ¶zlÃ¼k tashihi bu revizyonda.
 
 ```bash
 cd tools
@@ -166,7 +166,7 @@ python seed_test_tenants.py
 cd ..
 ```
 
-Doğrulama:
+DoÄŸrulama:
 
 ```bash
 docker compose -f /opt/matisse/deploy/docker-compose.yml exec postgres \
@@ -174,7 +174,7 @@ docker compose -f /opt/matisse/deploy/docker-compose.yml exec postgres \
   "SELECT signal_code, unit FROM signal_catalog WHERE expected_rate_hz = 0.0167 ORDER BY signal_code;"
 ```
 
-**Beklenen 6 satır:** `accel_total|(m/s2)^2`, `acoustic_db|dB`, `temperature_sensor|degC`, `vibration_x|mm/s`, `vibration_y|mm/s`, `vibration_z|mm/s`
+**Beklenen 6 satÄ±r:** `accel_total|(m/s2)^2`, `acoustic_db|dB`, `temperature_sensor|degC`, `vibration_x|mm/s`, `vibration_y|mm/s`, `vibration_z|mm/s`
 
 ---
 
@@ -186,18 +186,18 @@ docker compose -f /opt/matisse/deploy/docker-compose.yml exec keycloak \
 docker compose -f /opt/matisse/deploy/docker-compose.yml restart keycloak
 ```
 
-> Import 409 (çakışma) verirse: realm JSON'undaki nested `"id"` UUID'leri temizlenmeli. Prosedür `deploy/keycloak/README.md` içinde.
+> Import 409 (Ã§akÄ±ÅŸma) verirse: realm JSON'undaki nested `"id"` UUID'leri temizlenmeli. ProsedÃ¼r `deploy/keycloak/README.md` iÃ§inde.
 
-**Kullanıcılar realm export'unda YOK** — admin konsolundan elle oluşturulacak (`http://<LAN_IP>/auth/admin`, nginx sonrası):
+**KullanÄ±cÄ±lar realm export'unda YOK** â€” admin konsolundan elle oluÅŸturulacak (`http://192.168.1.73/auth/admin`, nginx sonrasÄ±):
 
-| Kullanıcı | Rol | tenant_code attribute |
+| KullanÄ±cÄ± | Rol | tenant_code attribute |
 |---|---|---|
 | `otokar_user` | OTOKAR_Viewer | OTOKAR |
 | `esogu_op` | ESOGU_Operator | ESOGU |
 | `deftr_admin` | DEFTR_Admin | DEFTR |
 
-> **Şifreler dev'dekilerden FARKLI olmalı.** DEFTR IT ile güvenli kanaldan paylaş.
-> Keycloak 24+ için: Realm settings → **Unmanaged Attributes = Enabled** (yoksa Attributes sekmesi görünmez).
+> **Åifreler dev'dekilerden FARKLI olmalÄ±.** DEFTR IT ile gÃ¼venli kanaldan paylaÅŸ.
+> Keycloak 24+ iÃ§in: Realm settings â†’ **Unmanaged Attributes = Enabled** (yoksa Attributes sekmesi gÃ¶rÃ¼nmez).
 
 ---
 
@@ -222,13 +222,13 @@ VITE_KEYCLOAK_REALM=cbmdtm
 VITE_KEYCLOAK_CLIENT_ID=cbmdtm-frontend
 ```
 
-> `VITE_API_BASE_URL` **boş** — frontend ve API aynı origin'de (nginx path routing). CORS önemsizleşir.
+> `VITE_API_BASE_URL` **boÅŸ** â€” frontend ve API aynÄ± origin'de (nginx path routing). CORS Ã¶nemsizleÅŸir.
 
 ```bash
 npm ci
 npm run build
 
-# Güvenlik hijyeni: dev-only expose prod bundle'a sızmamalı
+# GÃ¼venlik hijyeni: dev-only expose prod bundle'a sÄ±zmamalÄ±
 grep -r "__store" dist/assets/*.js || echo "TEMIZ"
 
 sudo mkdir -p /var/www/matisse
@@ -254,7 +254,7 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost/auth/realms/cbmdtm/.we
 
 **Beklenen:** health JSON + `200`.
 
-### TLS (DEFTR IT onayı geldiğinde)
+### TLS (DEFTR IT onayÄ± geldiÄŸinde)
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
@@ -265,9 +265,9 @@ Sonra `.env`'de `KEYCLOAK_ISSUER` ve `KC_HOSTNAME`'i `https://matisse.deftr.com/
 
 ---
 
-## 9. SYSTEMD SERVİSLERİ (1 sa)
+## 9. SYSTEMD SERVÄ°SLERÄ° (1 sa)
 
-> ⚠️ **Bridge'i başlatmadan önce:** dev makinendeki bridge'i durdur (tek instance kuralı).
+> âš ï¸ **Bridge'i baÅŸlatmadan Ã¶nce:** dev makinendeki bridge'i durdur (tek instance kuralÄ±).
 
 ```bash
 sudo cp /opt/matisse/deploy/systemd/matisse-*.service /etc/systemd/system/
@@ -280,20 +280,20 @@ sudo systemctl status matisse-api matisse-worker matisse-bridge --no-pager
 sudo journalctl -u matisse-bridge -f
 ```
 
-**Beklenen:** `IU token alindi (exp'e ~43200 sn)` ve **tekrarlayan login OLMAMALI.** Peş peşe `IU'ya login yapiliyor` akıyorsa `.env`'deki IU şifresi yanlış → durdur, düzelt (bkz. §3 kuralı).
+**Beklenen:** `IU token alindi (exp'e ~43200 sn)` ve **tekrarlayan login OLMAMALI.** PeÅŸ peÅŸe `IU'ya login yapiliyor` akÄ±yorsa `.env`'deki IU ÅŸifresi yanlÄ±ÅŸ â†’ durdur, dÃ¼zelt (bkz. Â§3 kuralÄ±).
 
 ---
 
-## 10. KURU KOŞUŞ (30 dk)
+## 10. KURU KOÅUÅ (30 dk)
 
 | # | Test | Beklenen |
 |---|---|---|
 | 1 | `curl http://<IP>/health` | `status:ok` + PG 17 + TimescaleDB |
-| 2 | Tarayıcı `http://<IP>` | Login sayfası |
-| 3 | `otokar_user` ile giriş | Dashboard, 3 modül, `OTOKAR · OTOKAR_Viewer` |
-| 4 | Start Stream → KPI kartları | Gerçek sayılar, 10 sn'de bir tazeleniyor |
-| 5 | `deftr_admin` ile giriş | 6 modül |
-| 6 | 15 dk sonra veri tazeliği | `max(ingest_ts_utc)` son dakikalar |
+| 2 | TarayÄ±cÄ± `http://<IP>` | Login sayfasÄ± |
+| 3 | `otokar_user` ile giriÅŸ | Dashboard, 3 modÃ¼l, `OTOKAR Â· OTOKAR_Viewer` |
+| 4 | Start Stream â†’ KPI kartlarÄ± | GerÃ§ek sayÄ±lar, 10 sn'de bir tazeleniyor |
+| 5 | `deftr_admin` ile giriÅŸ | 6 modÃ¼l |
+| 6 | 15 dk sonra veri tazeliÄŸi | `max(ingest_ts_utc)` son dakikalar |
 
 ```bash
 docker compose -f /opt/matisse/deploy/docker-compose.yml exec postgres \
@@ -303,10 +303,10 @@ docker compose -f /opt/matisse/deploy/docker-compose.yml exec postgres \
 
 ---
 
-## 11. GÜNLÜK İŞLETİM
+## 11. GÃœNLÃœK Ä°ÅLETÄ°M
 
 ```bash
-# Genel sağlık
+# Genel saÄŸlÄ±k
 systemctl status matisse-api matisse-worker matisse-bridge --no-pager
 docker compose -f /opt/matisse/deploy/docker-compose.yml ps
 
@@ -314,16 +314,16 @@ docker compose -f /opt/matisse/deploy/docker-compose.yml ps
 sudo journalctl -u matisse-bridge -f
 sudo journalctl -u matisse-worker -n 100 --no-pager
 
-# Yeniden başlatma
+# Yeniden baÅŸlatma
 sudo systemctl restart matisse-api
 
-# Veri akıyor mu?
+# Veri akÄ±yor mu?
 docker compose -f /opt/matisse/deploy/docker-compose.yml exec postgres \
   psql -U postgres -d cbmdtm -c \
   "SELECT max(ingest_ts_utc), now() FROM telemetry_measurements WHERE source='REAL';"
 ```
 
-### Kod güncelleme
+### Kod gÃ¼ncelleme
 
 ```bash
 cd /opt/matisse
@@ -333,12 +333,12 @@ pip install -r backend/requirements.txt
 alembic -c backend/alembic.ini upgrade head
 sudo systemctl restart matisse-api matisse-worker matisse-bridge
 
-# Frontend değiştiyse
+# Frontend deÄŸiÅŸtiyse
 cd frontend && npm ci && npm run build
 sudo cp -r dist/* /var/www/matisse/
 ```
 
-> **Migration sonrası `matisse-worker` MUTLAKA restart** — resolver cache'i başlangıçta bir kez yüklenir.
+> **Migration sonrasÄ± `matisse-worker` MUTLAKA restart** â€” resolver cache'i baÅŸlangÄ±Ã§ta bir kez yÃ¼klenir.
 
 ### Yedekleme
 
@@ -348,25 +348,25 @@ docker compose -f /opt/matisse/deploy/docker-compose.yml exec -T postgres \
   pg_dump -U postgres -d cbmdtm -F c > /opt/matisse/backups/cbmdtm_$STAMP.dump
 ```
 
-> **TODO(izin öncesi):** bunu cron'a bağla (günlük 03:00) + 7 günden eski dump'ları temizle.
+> **TODO(izin Ã¶ncesi):** bunu cron'a baÄŸla (gÃ¼nlÃ¼k 03:00) + 7 gÃ¼nden eski dump'larÄ± temizle.
 
 ---
 
-## 12. ARIZA MÜDAHALE (SK yokken — DK/ZG için)
+## 12. ARIZA MÃœDAHALE (SK yokken â€” DK/ZG iÃ§in)
 
-### Ekranda veri yok / KPI kartları boş
+### Ekranda veri yok / KPI kartlarÄ± boÅŸ
 
 ```bash
 systemctl status matisse-api matisse-worker matisse-bridge --no-pager
 ```
 
-| Durum | Yapılacak |
+| Durum | YapÄ±lacak |
 |---|---|
-| Servis `failed` | `sudo systemctl restart <servis>` → `journalctl -u <servis> -n 50` |
-| Hepsi `active` ama veri yok | Bridge log'una bak: IU tarafı kesinti olabilir (Otokar'da geçmişte 8 gün sürdü) |
-| Bridge'de tekrarlayan `IU'ya login yapiliyor` | **IU şifresi yanlış.** `.env`'i düzelt, `sudo systemctl restart matisse-bridge`. Düzeltmeden bırakma — hesap kilitlenebilir. |
+| Servis `failed` | `sudo systemctl restart <servis>` â†’ `journalctl -u <servis> -n 50` |
+| Hepsi `active` ama veri yok | Bridge log'una bak: IU tarafÄ± kesinti olabilir (Otokar'da geÃ§miÅŸte 8 gÃ¼n sÃ¼rdÃ¼) |
+| Bridge'de tekrarlayan `IU'ya login yapiliyor` | **IU ÅŸifresi yanlÄ±ÅŸ.** `.env`'i dÃ¼zelt, `sudo systemctl restart matisse-bridge`. DÃ¼zeltmeden bÄ±rakma â€” hesap kilitlenebilir. |
 
-### Sayfa açılmıyor
+### Sayfa aÃ§Ä±lmÄ±yor
 
 ```bash
 sudo nginx -t
@@ -374,9 +374,9 @@ sudo systemctl status nginx
 curl http://localhost/health
 ```
 
-`/health` çalışıp sayfa gelmiyorsa → `/var/www/matisse/index.html` var mı?
+`/health` Ã§alÄ±ÅŸÄ±p sayfa gelmiyorsa â†’ `/var/www/matisse/index.html` var mÄ±?
 
-### Login çalışmıyor
+### Login Ã§alÄ±ÅŸmÄ±yor
 
 ```bash
 docker compose -f /opt/matisse/deploy/docker-compose.yml ps keycloak
@@ -384,19 +384,19 @@ docker compose -f /opt/matisse/deploy/docker-compose.yml logs --tail 100 keycloa
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost/auth/realms/cbmdtm/.well-known/openid-configuration
 ```
 
-`invalid_grant` = 4 olası sebep: yanlış şifre, disabled user, required actions dolu, yanlış username.
+`invalid_grant` = 4 olasÄ± sebep: yanlÄ±ÅŸ ÅŸifre, disabled user, required actions dolu, yanlÄ±ÅŸ username.
 
 ### Disk doluyor
 
 ```bash
 df -h /
 docker system df
-docker system prune -a --volumes   # ⚠️ DİKKAT: pgdata volume'una dokunma
+docker system prune -a --volumes   # âš ï¸ DÄ°KKAT: pgdata volume'una dokunma
 ```
 
-RAW retention 90 gün olarak ayarlı; normalde disk sorunu olmamalı.
+RAW retention 90 gÃ¼n olarak ayarlÄ±; normalde disk sorunu olmamalÄ±.
 
-### Her şeyi yeniden başlat
+### Her ÅŸeyi yeniden baÅŸlat
 
 ```bash
 sudo systemctl restart matisse-api matisse-worker matisse-bridge
@@ -406,28 +406,28 @@ sudo systemctl reload nginx
 
 ---
 
-## 13. İZİN ÖNCESİ KONTROL LİSTESİ (7 Ağustos)
+## 13. Ä°ZÄ°N Ã–NCESÄ° KONTROL LÄ°STESÄ° (7 AÄŸustos)
 
-- [ ] Tüm systemd servisleri `enable` (yeniden başlatmada otomatik kalkar)
-- [ ] Sunucu reboot testi: `sudo reboot` → 5 dk sonra her şey ayakta mı?
-- [ ] Bridge login backoff'u doğrulandı (yanlış şifreyle test → 5 dk beklemeli, döngüye girmemeli)
-- [ ] Yedekleme cron'u kurulu ve bir kez çalıştığı doğrulandı
-- [ ] Bu RUNBOOK'u DK ve ZG okudu, §12'yi uygulayabildiklerini teyit etti
-- [ ] DK/ZG'nin SSH erişimi çalışıyor
-- [ ] İletişim: acil durumda kim aranacak, hangi karar SK'yi beklemeli
+- [ ] TÃ¼m systemd servisleri `enable` (yeniden baÅŸlatmada otomatik kalkar)
+- [ ] Sunucu reboot testi: `sudo reboot` â†’ 5 dk sonra her ÅŸey ayakta mÄ±?
+- [ ] Bridge login backoff'u doÄŸrulandÄ± (yanlÄ±ÅŸ ÅŸifreyle test â†’ 5 dk beklemeli, dÃ¶ngÃ¼ye girmemeli)
+- [ ] Yedekleme cron'u kurulu ve bir kez Ã§alÄ±ÅŸtÄ±ÄŸÄ± doÄŸrulandÄ±
+- [ ] Bu RUNBOOK'u DK ve ZG okudu, Â§12'yi uygulayabildiklerini teyit etti
+- [ ] DK/ZG'nin SSH eriÅŸimi Ã§alÄ±ÅŸÄ±yor
+- [ ] Ä°letiÅŸim: acil durumda kim aranacak, hangi karar SK'yi beklemeli
 
 ---
 
-## 14. AÇIK MADDELER
+## 14. AÃ‡IK MADDELER
 
 | Konu | Durum |
 |---|---|
-| TLS (Let's Encrypt) | DEFTR IT DNS + 443 yönlendirmesine bağlı |
-| Unreal Pixel Streaming systemd (`matisse-signaling`) | Paketlenmiş proje hazır olunca |
-| STEP 27: kalıcı Keycloak admin (bootstrap admin sil) | Deploy sonrası |
-| STEP 28: password policy + brute force protection | Deploy sonrası |
-| STEP 31: `.env` → systemd credentials | Faz 3 |
+| TLS (Let's Encrypt) | DEFTR IT DNS + 443 yÃ¶nlendirmesine baÄŸlÄ± |
+| Unreal Pixel Streaming systemd (`matisse-signaling`) | PaketlenmiÅŸ proje hazÄ±r olunca |
+| STEP 27: kalÄ±cÄ± Keycloak admin (bootstrap admin sil) | Deploy sonrasÄ± |
+| STEP 28: password policy + brute force protection | Deploy sonrasÄ± |
+| STEP 31: `.env` â†’ systemd credentials | Faz 3 |
 | STEP 32: rate limit Redis backend | Faz 3 |
 | STEP 33: `KEYCLOAK_VERIFY_AUDIENCE=true` + audience mapper | Faz 3 |
-| Docker image sürüm pinleme (`timescaledb:latest-pg17`) | İlk kurulumdan sonra |
-| Yedekleme cron | İzin öncesi |
+| Docker image sÃ¼rÃ¼m pinleme (`timescaledb:latest-pg17`) | Ä°lk kurulumdan sonra |
+| Yedekleme cron | Ä°zin Ã¶ncesi |

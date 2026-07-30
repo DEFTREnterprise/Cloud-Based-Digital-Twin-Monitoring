@@ -1,4 +1,4 @@
-# CB-MDTM — FastAPI (uvicorn)
+﻿# CB-MDTM â€” FastAPI (uvicorn)
 # Kurulum:
 #   sudo cp /opt/matisse/deploy/systemd/matisse-api.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
@@ -14,13 +14,13 @@ Requires=docker.service
 
 [Service]
 Type=exec
-User=matisse
-Group=matisse
+User=deftr_matisse
+Group=deftr_matisse
 WorkingDirectory=/opt/matisse/backend
 
 # .env dosyasi DB sifresi, Keycloak issuer, IU kimlik bilgilerini tasir.
 # Faz 3 STEP 31: systemd credentials'a tasinacak (dosya izni yerine
-# LoadCredential ile). Simdilik chmod 600 + User=matisse yeterli.
+# LoadCredential ile). Simdilik chmod 600 + User=deftr_matisse yeterli.
 EnvironmentFile=/opt/matisse/backend/.env
 
 # --reload YOK (prod). Worker sayisi tek node icin 2 yeterli;
