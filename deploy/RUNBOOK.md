@@ -148,15 +148,29 @@ docker compose exec postgres psql -U postgres -c "\l"   # cbmdtm + keycloak DB'l
 
 ## 5. MIGRATION + SEED (30 dk)
 
+> ⚠ **SIRA KRITIK.** Migration `0005`, varlik-monitor eslemesini kurmadan once
+> 12 OTOKAR varliginin varligini dogrular ve bulamazsa `RAISE EXCEPTION` ile
+> durur. Bos bir veritabaninda `alembic upgrade head` bu yuzden BASARISIZ OLUR.
+>
+> Ayrica `0002` ve `0004` TimescaleDB islemleri icin `autocommit_block`
+> kullanir; bu bloklar geri sarilmaz. Sonraki bir migration patlarsa surum
+> tablosu geriye doner ama fiziksel sema ilerlemis kalir (yarim durum).
+>
+> Dogru sira ucta ayrilir: **0004 → seed → head**
+
+### 5.1 — Once 0004'e kadar
+
 ```bash
 cd /opt/matisse/backend
 source .venv/bin/activate
 
-alembic upgrade head
+alembic upgrade 0004_tenant_id_denormalize
 alembic current
 ```
 
-**Beklenen:** `0006_iu_unit_fix (head)` â€” **0006 dahil olmalÄ±**, IU sÃ¶zlÃ¼k tashihi bu revizyonda.
+**Beklenen:** `0004_tenant_id_denormalize`
+
+### 5.2 — Referans veriyi yukle
 
 ```bash
 cd tools
@@ -166,17 +180,76 @@ python seed_test_tenants.py
 cd ..
 ```
 
-DoÄŸrulama:
+**Beklenen:** `1 tenant, 1 dt, 3 sinyal, 12 motor` + ESOGU/DEFTR tenant ozeti.
+
+Asset sayisini dogrula — `0005` tam olarak buna bakar:
 
 ```bash
 docker compose -f /opt/matisse/deploy/docker-compose.yml exec postgres \
-  psql -U postgres -d cbmdtm -c \
-  "SELECT signal_code, unit FROM signal_catalog WHERE expected_rate_hz = 0.0167 ORDER BY signal_code;"
+  psql -U postgres -d cbmdtm -c "
+SELECT t.tenant_code, count(*) AS motor
+FROM asset_registry ar
+JOIN dt_registry dr ON dr.dt_id = ar.dt_id
+JOIN tenant t ON t.tenant_id = dr.tenant_id
+WHERE ar.asset_code LIKE 'MOTOR_%'
+GROUP BY t.tenant_code;"
 ```
 
-**Beklenen 6 satÄ±r:** `accel_total|(m/s2)^2`, `acoustic_db|dB`, `temperature_sensor|degC`, `vibration_x|mm/s`, `vibration_y|mm/s`, `vibration_z|mm/s`
+**Beklenen:** `OTOKAR | 12`. Farkliysa DEVAM ETME — `0005` yine patlar.
 
----
+### 5.3 — Kalan migration'lar
+
+```bash
+alembic upgrade head
+alembic current
+```
+
+**Beklenen:** `0006_iu_unit_fix (head)` — **0006 dahil olmali**, IU sozluk
+tashihi bu revizyonda.
+
+### 5.4 — Sozluk dogrulamasi
+
+```bash
+docker compose -f /opt/matisse/deploy/docker-compose.yml exec postgres \
+  psql -U postgres -d cbmdtm -c "
+SELECT signal_code, unit FROM signal_catalog
+WHERE expected_rate_hz = 0.0167 ORDER BY signal_code;"
+```
+
+**Beklenen 6 satir:**
+
+```
+ accel_total        | (m/s2)^2
+ acoustic_db        | dB
+ temperature_sensor | degC
+ vibration_x        | mm/s
+ vibration_y        | mm/s
+ vibration_z        | mm/s
+```
+
+`temperature_bearing` **gorunmemeli** (0006 ile `acoustic_db` olarak
+yeniden adlandirildi).
+
+### 5.5 — Yarim durumdan kurtarma
+
+Migration dizisi ortada patlar ve `alembic current` ile fiziksel sema
+uyusmazsa, en temizi sifirdan baslamaktir (bos veritabaninda veri kaybi yok):
+
+```bash
+cd /opt/matisse/deploy
+docker compose exec postgres psql -U postgres -c "DROP DATABASE cbmdtm;"
+docker compose exec postgres psql -U postgres -c \
+  "CREATE DATABASE cbmdtm TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';"
+docker compose exec postgres psql -U postgres -d cbmdtm -c \
+  "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+```
+
+Ardindan 5.1'den tekrar basla.
+
+> **NOT (sonraki donem):** Bir sema migration'i referans veriye bagimli
+> olmamalidir. `0005`'teki dogrulama, sureci durdurmak yerine backfill'i
+> atlayacak sekilde zarifce bozulmali. Bu duzeltme yapilirsa bu bolumdeki
+> uc asamali sira tek komuta doner.
 
 ## 6. KEYCLOAK REALM IMPORT (1 sa)
 
@@ -264,6 +337,195 @@ sudo certbot --nginx -d matisse.deftr.com
 Sonra `.env`'de `KEYCLOAK_ISSUER` ve `KC_HOSTNAME`'i `https://matisse.deftr.com/...` yap, `docker compose up -d keycloak` ve `systemctl restart matisse-api`.
 
 ---
+
+## 8b. TLS SERTİFİKA YÖNETİMİ VE SÜREKLİLİĞİ
+
+> ⚠ **TLS bu platform için işlevsel bir ön koşuldur, ertelenebilir bir
+> sertleştirme önlemi değildir.** PKCE akışı code challenge üretmek için
+> tarayıcı Web Crypto API'sini gerektirir; bu API yalnızca güvenli bağlamda
+> (HTTPS veya loopback) çalışır. Düz HTTP üzerinde hiç kimse giriş yapamaz.
+
+### 8b.1 — Mevcut durum: Self-signed (Senaryo A)
+
+Kurulumda üretilen sertifika `/etc/nginx/ssl/` altındadır ve **825 gün**
+geçerlidir. LAN içi erişim için yeterlidir ancak tarayıcı ara uyarı ekranı
+gösterir — **konsorsiyum ortaklarına bu şekilde açılamaz.**
+
+Geçerlilik kontrolü:
+
+```bash
+sudo openssl x509 -in /etc/nginx/ssl/matisse.crt -noout -subject -dates
+```
+
+### 8b.2 — Hedef: Let's Encrypt (Senaryo B)
+
+**Ön koşullar — DEFTR IT tarafından sağlanmalı:**
+
+| # | Gereksinim | Durum |
+|---|---|---|
+| 1 | Public statik IP | ⏸ teyit bekliyor |
+| 2 | `matisse.deftr.com` DNS A kaydı | ⏸ **NXDOMAIN — yok** |
+| 3 | Berqnet: dış 443 → `192.168.1.73` | ⏸ bekliyor |
+| 4 | Berqnet: dış 80 → `192.168.1.73` (**kalıcı**, yenileme için) | ⏸ bekliyor |
+| 5 | DHCP rezervasyonu (MAC `4c:c5:d9:4b:76:e4`) | ⏸ bekliyor |
+
+**Doğrulama — uygulamadan önce:**
+
+```bash
+# DNS çözümleniyor mu ve doğru IP'ye mi gidiyor?
+nslookup matisse.deftr.com
+curl -s ifconfig.me; echo     # çıkan IP, A kaydındaki ile aynı olmalı
+
+# 80 dışarıdan erişilebilir mi? (mobil veri gibi harici bir ağdan)
+curl -I http://matisse.deftr.com
+```
+
+`nslookup` hâlâ NXDOMAIN veriyorsa **certbot'u çalıştırma** — başarısız olur
+ve Let's Encrypt hız sınırına takılabilirsin (aynı domain için saatte 5
+başarısız doğrulama).
+
+### 8b.3 — Sertifika edinme
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+
+# Önce prova — gerçek sertifika almadan doğrulamayı test eder
+sudo certbot certonly --nginx -d matisse.deftr.com --dry-run
+
+# Prova geçtiyse gerçek sertifika
+sudo certbot --nginx -d matisse.deftr.com
+```
+
+`--dry-run` **atlanmamalı.** Let's Encrypt üretim ortamında haftalık sertifika
+limiti vardır; başarısız denemeler bu limiti tüketir.
+
+### 8b.4 — nginx'i Senaryo B'ye geçir
+
+certbot `--nginx` eklentisiyle çalıştırıldığında config'i genelde kendisi
+düzenler. Düzenlemediyse `/etc/nginx/sites-available/matisse` içinde:
+
+```nginx
+# (A) yorum satırına al:
+#   ssl_certificate     /etc/nginx/ssl/matisse.crt;
+#   ssl_certificate_key /etc/nginx/ssl/matisse.key;
+
+# (B) aktif et:
+ssl_certificate     /etc/letsencrypt/live/matisse.deftr.com/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/matisse.deftr.com/privkey.pem;
+include /etc/letsencrypt/options-ssl-nginx.conf;
+ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+add_header Strict-Transport-Security "max-age=31536000" always;
+```
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 8b.5 — ⚠ OTOMATİK YENİLEME — SÜREKLİLİĞİN ÇEKİRDEĞİ
+
+**Let's Encrypt sertifikaları 90 gün geçerlidir.** Otomatik yenileme
+kurulmazsa sistem 90. günde **sessizce erişilemez hale gelir** — ve bu büyük
+olasılıkla kimsenin başında olmadığı bir anda olur.
+
+certbot apt paketi bir systemd timer kurar. **Kurulduğunu doğrula:**
+
+```bash
+systemctl list-timers | grep certbot
+systemctl status certbot.timer
+```
+
+Timer yoksa veya pasifse:
+
+```bash
+sudo systemctl enable --now certbot.timer
+```
+
+**Yenileme provası — kurulumdan sonra MUTLAKA çalıştır:**
+
+```bash
+sudo certbot renew --dry-run
+```
+
+Bu komut gerçek yenileme sürecini baştan sona simüle eder. Burada başarısız
+olursa 90 gün sonra da başarısız olacaktır. **Prova geçmeden kurulum
+tamamlanmış sayılmaz.**
+
+**nginx reload hook'u** — yenilenen sertifikanın devreye girmesi için nginx'in
+yeniden yüklenmesi gerekir:
+
+```bash
+sudo mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh >/dev/null <<'HOOK'
+#!/bin/bash
+systemctl reload nginx
+HOOK
+sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+```
+
+### 8b.6 — Periyodik kontrol
+
+Aylık rutine ekle — kalan gün sayısını gösterir:
+
+```bash
+sudo certbot certificates
+```
+
+Tek satırlık uyarı kontrolü (30 günden az kaldıysa uyarır):
+
+```bash
+END=$(sudo openssl x509 -in /etc/letsencrypt/live/matisse.deftr.com/cert.pem -noout -enddate | cut -d= -f2)
+DAYS=$(( ( $(date -d "$END" +%s) - $(date +%s) ) / 86400 ))
+echo "Sertifika bitisine $DAYS gun"
+[ $DAYS -lt 30 ] && echo "!!! UYARI: yenileme kontrol edilmeli"
+```
+
+> **İzin/tatil dönemi notu:** Sertifikanın bitiş tarihi bir izin dönemine
+> denk geliyorsa, dönem öncesinde `certbot renew --force-renewal` ile erken
+> yenileme yapılabilir. Bu, 90 günlük sayacı sıfırlar.
+
+### 8b.7 — Keycloak ve frontend'i HTTPS'e hizala
+
+Sertifika devreye girdikten sonra üç yerde domain güncellenmeli:
+
+```bash
+# 1) backend/.env
+KEYCLOAK_ISSUER=https://matisse.deftr.com/auth/realms/cbmdtm
+CORS_ORIGINS_RAW=https://matisse.deftr.com
+KC_HOSTNAME=https://matisse.deftr.com/auth        # ⚠ /auth yolu dahil
+
+# 2) Keycloak yeniden başlat
+cd /opt/matisse/deploy && docker compose up -d keycloak
+sleep 45
+curl -s https://matisse.deftr.com/auth/realms/cbmdtm/.well-known/openid-configuration \
+  | python3 -c "import sys,json; print('issuer:', json.load(sys.stdin)['issuer'])"
+# Beklenen: https://matisse.deftr.com/auth/realms/cbmdtm
+
+# 3) frontend yeniden derle
+cd /opt/matisse/frontend
+cat > .env <<'FE'
+VITE_API_BASE_URL=
+VITE_KEYCLOAK_URL=https://matisse.deftr.com/auth
+VITE_KEYCLOAK_REALM=cbmdtm
+VITE_KEYCLOAK_CLIENT_ID=cbmdtm-frontend
+FE
+npm run build
+sudo cp -r dist/* /var/www/matisse/
+sudo chown -R www-data:www-data /var/www/matisse
+```
+
+Ardından Keycloak admin konsolundan `cbmdtm-frontend` client'ına
+`https://matisse.deftr.com/*` redirect URI ve web origin **zaten ekli**
+olmalıdır (realm JSON'da tanımlı). Değilse ekleyip kaydet.
+
+### 8b.8 — Kabul kriteri
+
+- [ ] `https://matisse.deftr.com` tarayıcı uyarısı olmadan açılıyor
+- [ ] `certbot renew --dry-run` başarılı
+- [ ] `systemctl list-timers | grep certbot` aktif timer gösteriyor
+- [ ] Yenileme hook'u kurulu ve çalıştırılabilir
+- [ ] Issuer `https://matisse.deftr.com/auth/realms/cbmdtm` dönüyor
+- [ ] Üç rolle dış ağdan oturum açılabiliyor
+
 
 ## 9. SYSTEMD SERVÄ°SLERÄ° (1 sa)
 
