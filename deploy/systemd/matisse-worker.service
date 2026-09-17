@@ -1,4 +1,4 @@
-﻿# CB-MDTM â€” MQTT ingest worker
+# CB-MDTM — MQTT ingest worker
 # Kurulum:
 #   sudo cp /opt/matisse/deploy/systemd/matisse-worker.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now matisse-worker
@@ -9,10 +9,14 @@ After=network-online.target docker.service
 Wants=network-online.target
 Requires=docker.service
 
+# StartLimit* [Unit] bolumune aittir; [Service] icinde
+# 'Unknown key name' uyarisiyla yok sayilir.
+StartLimitBurst=5
+StartLimitIntervalSec=120
 [Service]
 Type=exec
-User=deftr_matisse
-Group=deftr_matisse
+User=matisse
+Group=matisse
 WorkingDirectory=/opt/matisse/backend
 EnvironmentFile=/opt/matisse/backend/.env
 
@@ -23,13 +27,15 @@ ExecStart=/opt/matisse/backend/.venv/bin/python -m app.ingest.mqtt_worker
 
 Restart=always
 RestartSec=5
-StartLimitBurst=5
-StartLimitIntervalSec=120
 
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
+# ProtectHome=true asyncpg'yi kirar: her baglantida
+# ~/.postgresql/postgresql.key varligini kontrol eder ve /home
+# erisilemezse PermissionError firlatir. tmpfs ile /home bos bir
+# tmpfs olarak gorunur -> exists() False doner, baglanti kurulur.
+ProtectHome=tmpfs
 ReadWritePaths=/opt/matisse
 
 StandardOutput=journal
