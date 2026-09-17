@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_DEFAULT: str = "60/minute"
     RATE_LIMIT_ME: str = "30/minute"
 
+    # Rate limit sayac deposu (S1.4).
+    # Bos veya "memory://" ise surec ici bellek kullanilir; bu durumda
+    # uvicorn --workers N ile efektif limit N katina cikar.
+    # Uretimde: redis://localhost:6379/0
+    # Redis erisilemezse core/limiter.py otomatik in-memory'ye duser.
+    RATE_LIMIT_STORAGE_URI: str = "memory://"
+
     @property
     def CORS_ORIGINS(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS_RAW.split(",") if o.strip()]
