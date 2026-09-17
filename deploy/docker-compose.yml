@@ -1,4 +1,4 @@
-﻿# CB-MDTM â€” Ankara prod Docker Compose
+# CB-MDTM — Ankara prod Docker Compose
 # ====================================
 # ADR-003 (karma paketleme): Docker = PG + Keycloak + Mosquitto
 #                            systemd = FastAPI + worker + bridge + nginx + signaling
@@ -6,7 +6,7 @@
 # NOT (ADR-003'ten sapma): Mosquitto orijinal ADR'de systemd tarafindaydi ama
 # ZG'nin sunucu kurulumunda apt ile mosquitto kurulmadi. Docker'a almak hem
 # kurulum adimini azaltiyor hem surum sabitliyor. Broker YALNIZCA localhost'a
-# baglanir (127.0.0.1:1883) â€” disaridan erisilemez.
+# baglanir (127.0.0.1:1883) — disaridan erisilemez.
 #
 # Calistirma:
 #   cd /opt/matisse/deploy
@@ -30,10 +30,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env'de tanimli olmali}
       POSTGRES_DB: cbmdtm
-      # locale=C â€” Turkce i/I tuzagi (AI_WORKING_PROTOCOL Â§5)
+      # locale=C — Turkce i/I tuzagi (AI_WORKING_PROTOCOL §5)
       POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
     ports:
-      # SADECE localhost â€” FastAPI/worker/alembic ayni makinede
+      # SADECE localhost — FastAPI/worker/alembic ayni makinede
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -55,6 +55,10 @@ services:
     restart: unless-stopped
     command:
       - start
+      # NOT: '--optimized' bayragi YALNIZCA onceden 'kc.sh build' edilmis
+      # image'lar icin gecerlidir. Resmi image ile ilk acilista Keycloak
+      # "The '--optimized' flag was used for first ever server start"
+      # hatasi verip restart dongusune girer. (30 Tem 2026'da yasandi.)
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
@@ -92,7 +96,7 @@ services:
     container_name: matisse-mosquitto
     restart: unless-stopped
     ports:
-      # SADECE localhost â€” bridge ve worker ayni makinede
+      # SADECE localhost — bridge ve worker ayni makinede
       - "127.0.0.1:1883:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro

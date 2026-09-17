@@ -108,3 +108,21 @@ secrets.json
 *.p12
 *.pfx
 *_old.md
+
+# Ortam dosyalari - gercek sifre tasirlar, ASLA commit edilmez
+.env
+backend/.env
+deploy/.env
+*.env.local
+
+# Ortam dosyalari - gercek sifre tasirlar, ASLA commit edilmez
+.env
+backend/.env
+deploy/.env
+*.env.local
+
+# Ortam dosyalari - gercek sifre tasirlar, ASLA commit edilmez
+.env
+backend/.env
+deploy/.env
+*.env.local
